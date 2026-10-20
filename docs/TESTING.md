@@ -40,3 +40,10 @@ CI (`.github/workflows/ci.yml`) runs lint, type check and unit tests on every pu
   These are Peter's Gate 1 steps.
 - Note: `npm run dev` hit the Linux file-watcher limit (`ENOSPC`). Use `npm run dev:poll`, or raise
   the limit once: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p`.
+- **Peter, `npm run spike -- --self-payee` (control, no payee): 13/13 passed, GO.** Authorise
+  (HTTP 201, expires +29 days), capture COMPLETED, same request id replayed the same capture
+  (HTTP 200), new request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one capture; void
+  accepted, status VOIDED, capture after void refused `AUTHORIZATION_VOIDED`. Run
+  `32d557ca-d5cc-40f5-ac77-07c91207f806`.
+- First seller-A run: both orders stayed `PAYER_ACTION_REQUIRED` (Enter pressed before approval
+  finished); the script now waits for APPROVED. Seller-A payee run still to repeat.
