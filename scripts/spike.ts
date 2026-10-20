@@ -172,9 +172,7 @@ async function main() {
 
 main()
   .catch((e: unknown) => {
-    // Network errors hide the reason in `cause` (e.g. ETIMEDOUT); it never contains secrets.
-    const cause = e instanceof Error && e.cause instanceof Error ? ` (${e.cause.message})` : "";
-    console.error(`${e instanceof Error ? e.message : "Unknown error"}${cause}`);
+    console.error(e instanceof Error ? e.message : "Unknown error");
     process.exitCode = 1;
   })
   .finally(() => rl.close());

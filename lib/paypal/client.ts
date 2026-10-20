@@ -9,13 +9,45 @@ let tokenCache: TokenCache | undefined;
 /** Refresh this many ms before PayPal's stated expiry. */
 const TOKEN_SKEW_MS = 60_000;
 
+/** Network-level retries (no HTTP response at all). Waits before attempts 2 and 3. */
+const RETRY_DELAYS_MS = [1_000, 3_000];
+
+/** Short reason for a failed fetch, e.g. "ETIMEDOUT" or "ECONNRESET". Never contains secrets. */
+export function networkErrorReason(e: unknown): string {
+  const cause = e instanceof Error ? (e.cause as { code?: string; errors?: unknown[] }) : undefined;
+  const codes = (cause?.errors ?? [cause])
+    .map((x) => (x as { code?: string } | undefined)?.code)
+    .filter(Boolean);
+  return codes.length ? [...new Set(codes)].join("/") : e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * fetch with retries on network errors only; any HTTP response is returned as is. Safe for POSTs
+ * because each one carries a fixed PayPal-Request-Id, so a repeat replays instead of re-running.
+ */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      if (attempt >= RETRY_DELAYS_MS.length) {
+        throw new Error(
+          `PayPal unreachable after ${attempt + 1} attempts (${networkErrorReason(e)})`,
+          { cause: e },
+        );
+      }
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
 function basicAuth(): string {
   const env = serverEnv();
   return Buffer.from(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`).toString("base64");
 }
 
 async function postToken(body: string): Promise<{ access_token: string; expires_in: number }> {
-  const res = await fetch(`${serverEnv().PAYPAL_API_BASE}/v1/oauth2/token`, {
+  const res = await fetchWithRetry(`${serverEnv().PAYPAL_API_BASE}/v1/oauth2/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${basicAuth()}`,
@@ -82,7 +114,7 @@ export async function paypalFetch<T = unknown>(
   };
   if (requestId) headers["PayPal-Request-Id"] = requestId;
 
-  const res = await fetch(`${serverEnv().PAYPAL_API_BASE}${path}`, {
+  const res = await fetchWithRetry(`${serverEnv().PAYPAL_API_BASE}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
