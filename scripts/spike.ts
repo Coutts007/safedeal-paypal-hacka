@@ -68,10 +68,20 @@ async function createApproveAuthorize(runId: string, label: string) {
   }
   console.log(`\n  Open this link, log in as the SANDBOX BUYER and approve:\n\n  ${link}\n`);
   console.log("  (After approving you land on example.com. That is expected.)");
-  await rl.question("  Press Enter once you have approved... ");
-
-  const order = await paypalFetch<AuthorizedOrder>(`/v2/checkout/orders/${created.json.id}`);
-  check(`${label}: order approved by buyer`, order.json.status === "APPROVED", order.json.status);
+  // Wait until PayPal reports APPROVED; pressing Enter early just re-checks.
+  let status = "";
+  for (;;) {
+    const answer = await rl.question("  Press Enter once you have approved (or type skip)... ");
+    const order = await paypalFetch<AuthorizedOrder>(`/v2/checkout/orders/${created.json.id}`);
+    status = order.json.status;
+    if (status === "APPROVED" || answer.trim().toLowerCase() === "skip") break;
+    console.log(
+      `  Order is ${status}, not APPROVED yet. Finish on the PayPal page: log in as the buyer and` +
+        " click Continue / Pay. If PayPal shows an error, note its exact text.",
+    );
+  }
+  check(`${label}: order approved by buyer`, status === "APPROVED", status);
+  if (status !== "APPROVED") return undefined;
 
   const authorized = await paypalFetch<AuthorizedOrder>(
     `/v2/checkout/orders/${created.json.id}/authorize`,
