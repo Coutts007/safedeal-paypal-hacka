@@ -5,6 +5,9 @@
  * authorised, captured once (and only once) and, on a second order, voided.
  * Prints ids, statuses and PayPal debug ids only: no secrets, tokens or emails.
  *
+ * `npm run spike -- --self-payee` omits the payee (money goes to the app's own business account):
+ * a control run to tell a payee problem apart from a buyer-approval problem.
+ *
  * This is the one place outside lib/rules/engine.ts that calls capture/void, because it exists
  * to test those calls before the engine is built. It is never imported by the app.
  */
@@ -34,18 +37,21 @@ function describe(res: PaypalResponse): string {
   return `HTTP ${res.status}${issue ? ` ${issue}` : ""}, debug_id ${res.debugId ?? "n/a"}`;
 }
 
+const selfPayee = process.argv.includes("--self-payee");
+const payeeLabel = selfPayee ? "app's own account (no payee)" : "seller A";
+
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 
 /** Create an AUTHORIZE order, let Peter approve it as the buyer, then authorise it. */
 async function createApproveAuthorize(runId: string, label: string) {
   const env = serverEnv();
-  console.log(`\n== Order ${label}: create (intent AUTHORIZE, 12.00 USD, payee = seller A)`);
+  console.log(`\n== Order ${label}: create (intent AUTHORIZE, 12.00 USD, payee = ${payeeLabel})`);
   const created = await paypalFetch<AuthorizedOrder & { links?: { href: string; rel: string }[] }>(
     "/v2/checkout/orders",
     {
       method: "POST",
       requestId: `spike-${runId}-${label}-create-v1`,
-      body: buildSpikeOrder(env.SANDBOX_SELLER_A_EMAIL, `spike-${label}`, {
+      body: buildSpikeOrder(selfPayee ? null : env.SANDBOX_SELLER_A_EMAIL, `spike-${label}`, {
         returnUrl: "https://example.com/safedeal-spike/approved",
         cancelUrl: "https://example.com/safedeal-spike/cancelled",
       }),
@@ -55,11 +61,13 @@ async function createApproveAuthorize(runId: string, label: string) {
   if (!created.ok) return undefined;
 
   const payee = created.json.purchase_units?.[0]?.payee;
-  check(
-    `${label}: payee is seller A`,
-    payee?.email_address?.toLowerCase() === env.SANDBOX_SELLER_A_EMAIL.toLowerCase(),
-    `merchant_id ${payee?.merchant_id ?? "not returned"}`,
-  );
+  if (!selfPayee) {
+    check(
+      `${label}: payee is seller A`,
+      payee?.email_address?.toLowerCase() === env.SANDBOX_SELLER_A_EMAIL.toLowerCase(),
+      `merchant_id ${payee?.merchant_id ?? "not returned"}`,
+    );
+  }
 
   const link = approvalLink(created.json);
   if (!link) {
@@ -168,7 +176,7 @@ async function main() {
   if (!env.SANDBOX_SELLER_A_EMAIL) throw new Error("SANDBOX_SELLER_A_EMAIL is not set");
   const runId = randomUUID();
   console.log(`SafeDeal payment spike, run ${runId}`);
-  console.log(`API base ${env.PAYPAL_API_BASE}`);
+  console.log(`API base ${env.PAYPAL_API_BASE}, payee: ${payeeLabel}`);
 
   await captureRun(runId);
   await voidRun(runId);

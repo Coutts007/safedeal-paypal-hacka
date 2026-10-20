@@ -5,7 +5,8 @@ export const SPIKE_AMOUNT_USD = "12.00";
 
 export type ExperienceUrls = { returnUrl: string; cancelUrl: string };
 
-export function buildSpikeOrder(payeeEmail: string, label: string, urls?: ExperienceUrls) {
+/** `payeeEmail` null = no payee, so the app's own sandbox business account receives the money. */
+export function buildSpikeOrder(payeeEmail: string | null, label: string, urls?: ExperienceUrls) {
   return {
     intent: "AUTHORIZE",
     purchase_units: [
@@ -13,7 +14,7 @@ export function buildSpikeOrder(payeeEmail: string, label: string, urls?: Experi
         reference_id: label,
         description: "SafeDeal Phase 1 payment spike",
         amount: { currency_code: "USD", value: SPIKE_AMOUNT_USD },
-        payee: { email_address: payeeEmail },
+        ...(payeeEmail && { payee: { email_address: payeeEmail } }),
       },
     ],
     // Only the script needs return URLs (it sends the buyer to the approval link itself);
