@@ -26,6 +26,8 @@ const serverEnvSchema = z.object({
     .transform((v) => v === "true"),
   KES_PER_USD: z.coerce.number().positive().default(130),
   MAX_DEAL_USD: z.coerce.number().positive().max(10_000).default(500),
+  SANDBOX_SELLER_A_EMAIL: z.string().default(""),
+  SANDBOX_SELLER_B_EMAIL: z.string().default(""),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
