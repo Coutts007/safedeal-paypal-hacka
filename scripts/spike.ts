@@ -52,8 +52,8 @@ async function createApproveAuthorize(runId: string, label: string) {
       method: "POST",
       requestId: `spike-${runId}-${label}-create-v1`,
       body: buildSpikeOrder(selfPayee ? null : env.SANDBOX_SELLER_A_EMAIL, `spike-${label}`, {
-        returnUrl: "https://example.com/safedeal-spike/approved",
-        cancelUrl: "https://example.com/safedeal-spike/cancelled",
+        returnUrl: `${env.APP_BASE_URL}/spike/returned?result=approved`,
+        cancelUrl: `${env.APP_BASE_URL}/spike/returned?result=cancelled`,
       }),
     },
   );
@@ -75,7 +75,10 @@ async function createApproveAuthorize(runId: string, label: string) {
     return undefined;
   }
   console.log(`\n  Open this link, log in as the SANDBOX BUYER and approve:\n\n  ${link}\n`);
-  console.log("  (After approving you land on example.com. That is expected.)");
+  console.log(
+    `  (After approving you land on ${env.APP_BASE_URL}/spike/returned. If the dev server is not` +
+      " running that page will not load, which is fine.)",
+  );
   // Wait until PayPal reports APPROVED; pressing Enter early just re-checks.
   let status = "";
   for (;;) {
