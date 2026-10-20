@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: safedeal
+      POSTGRES_PASSWORD: safedeal
+      POSTGRES_DB: safedeal
+    ports:
+      - "5433:5432"
+    volumes:
+      - safedeal-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safedeal"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  safedeal-pg:
