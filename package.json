@@ -19,6 +19,7 @@
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:deploy": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "check:env": "tsx scripts/check-env.ts",
     "spike": "tsx scripts/spike.ts",

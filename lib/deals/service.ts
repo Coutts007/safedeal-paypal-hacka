@@ -96,11 +96,19 @@ export async function proposeTerms(
     if (!deal) return { ok: false, reason: "deal not found" };
     if (deal.state !== "DRAFT") return { ok: false, reason: "the terms are locked" };
     const [latest] = await tx
-      .select({ version: dealTerms.version, hash: dealTerms.termsHash })
+      .select({ version: dealTerms.version, hash: dealTerms.termsHash, json: dealTerms.termsJson })
       .from(dealTerms)
       .where(eq(dealTerms.dealId, dealId))
       .orderBy(desc(dealTerms.version))
       .limit(1);
+    // Only the seller decides where the money goes; a buyer's proposal cannot change the payee.
+    const currentPayee = latest && dealTermsSchema.parse(latest.json).payeeEmail;
+    if (role === "buyer" && currentPayee && currentPayee !== terms.payeeEmail) {
+      return {
+        ok: false,
+        reason: "only the seller can change the PayPal email that receives the money",
+      };
+    }
     if (latest?.hash === hash) return { ok: true, version: latest.version, termsHash: hash };
     const version = (latest?.version ?? 0) + 1;
     await tx

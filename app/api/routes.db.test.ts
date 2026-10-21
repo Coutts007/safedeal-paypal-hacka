@@ -141,6 +141,19 @@ describe("terms", () => {
   });
 });
 
+describe("payee protection", () => {
+  it("the buyer cannot change the payee email, the seller can", async () => {
+    const d = await newDeal();
+    const hijack = { ...TERMS_INPUT, payeeEmail: "buyer-own@example.com" };
+    const res = await termsRoute(req("POST", { terms: hijack }, as(d.buyer)), ctx(d.ref));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain("only the seller");
+    expect(
+      (await termsRoute(req("POST", { terms: hijack }, as(d.seller)), ctx(d.ref))).status,
+    ).toBe(200);
+  });
+});
+
 describe("payment flow", () => {
   it("runs DRAFT → AGREED → AUTHORIZED → SHIPPED → CAPTURED through the routes", async () => {
     const d = await agreed();
