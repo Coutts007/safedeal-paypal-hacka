@@ -40,3 +40,26 @@ CI (`.github/workflows/ci.yml`) runs lint, type check and unit tests on every pu
   These are Peter's Gate 1 steps.
 - Note: `npm run dev` hit the Linux file-watcher limit (`ENOSPC`). Use `npm run dev:poll`, or raise
   the limit once: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p`.
+- **Peter, `npm run spike -- --self-payee` (control, no payee): 13/13 passed, GO.** Authorise
+  (HTTP 201, expires +29 days), capture COMPLETED, same request id replayed the same capture
+  (HTTP 200), new request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one capture; void
+  accepted, status VOIDED, capture after void refused `AUTHORIZATION_VOIDED`. Run
+  `32d557ca-d5cc-40f5-ac77-07c91207f806`.
+- First seller-A run: both orders stayed `PAYER_ACTION_REQUIRED` (Enter pressed before approval
+  finished); the script now waits for APPROVED.
+- **Peter, `npm run spike` (payee = seller A): 15/15 passed, GO.** Payee in the order response
+  matched seller A's email (`merchant_id` not returned in the create response). Order A: approved,
+  authorise HTTP 201 (expires 2026-11-19, +29 days), capture COMPLETED, same request id replayed the
+  same capture (HTTP 200), new request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one
+  capture. Order B: approved, authorised, void HTTP 200, status VOIDED, capture after void refused
+  `AUTHORIZATION_VOIDED`. Run `a132c242-e872-4c50-af59-9598f64a17e6`.
+- **Claude, read-only `GET /v2/checkout/orders/8A320971KG958492H` (2026-10-21):** order COMPLETED,
+  payee email = seller A, authorisation CAPTURED, capture COMPLETED 12.00 USD with seller net 11.29
+  after a 0.71 PayPal fee, so the money is booked to seller A. `merchant_id` is not returned on the
+  order even after capture. Peter's visual check of seller A's sandbox account is still welcome.
+- **Peter, `/spike` browser test (SDK v6, `npm run dev:poll`): passed.** SDK initialised with
+  `clientId` (no client-token fallback needed). Three buyer approvals (orders `5N785909AR225141Y`,
+  `24L73044TB956062N`, `3ND72630PT258970W`) were each authorised on the server: CREATED, expires
+  +29 days. One cancel in between was reported as "Buyer cancelled" and did not break later
+  payments. Those three authorisations were left open; they expire on 2026-11-19.
+- Unit tests 12/12, `npm run typecheck` and `npm run lint` clean (2026-10-21).

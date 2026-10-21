@@ -1,11 +1,11 @@
 # Progress
 
-_Last updated: 2026-10-20 (Nairobi)_
+_Last updated: 2026-10-21 (Nairobi)_
 
 ## Current phase
 
-**Phase 1: Payment spike (go/no-go)** — built; **waiting for Peter** to run it with the sandbox
-buyer and report. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
+**Phase 1: Payment spike (go/no-go)** — **complete, result GO.** Phase 1 report delivered;
+**waiting for Peter's "Approved, start Phase 2"** and the PR for `phase-1-payment-spike`. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
 
 ## Done
 
@@ -30,13 +30,29 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   eligibility check; `<paypal-button type="pay">`; popup-blocked → redirect; `hasReturned/resume`.
   Routes `POST /api/spike/order`, `POST /api/spike/authorize`, `GET /api/spike/client-token`
   (all 404 in production).
+- `--self-payee` control run; the script waits for the order to be APPROVED before authorising;
+  approval links return to `/spike/returned` (tells the buyer to go back to the terminal).
+- **Control run (`npm run spike -- --self-payee`, no payee): 13/13 passed, GO.** Authorise HTTP 201
+  (expires +29 days), capture COMPLETED, same request id replayed the same capture (HTTP 200), new
+  request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one capture; void accepted, status
+  VOIDED, capture after void refused `AUTHORIZATION_VOIDED`. Details in `docs/TESTING.md`.
+- First seller-A payee run inconclusive: both orders stayed `PAYER_ACTION_REQUIRED` (Enter pressed
+  before approval finished). Fixed by the APPROVED wait above.
+- **Seller-A payee run (`npm run spike`): 15/15 passed, GO.** Same results as the control run, with
+  the order payee set to seller A. Details in `docs/TESTING.md`.
+- Server-side check: order A's capture is 12.00 USD, seller net 11.29 (fee 0.71), payee seller A.
+- **`/spike` browser test passed**: SDK v6 initialised with `clientId`; three approvals authorised
+  (CREATED, +29 days); a buyer cancel was handled. Three test authorisations left open (expire
+  2026-11-19).
 
 ## Blocked / waiting on Peter
 
-- Run the spike steps (see "Next step").
+- Approve Phase 1 and open the PR for `phase-1-payment-spike` → `main`.
+- Optional: glance at seller A's sandbox account (12.00 USD capture, order `8A320971KG958492H`).
 - Optional: a second sandbox Business account for seller B (seller A can stand in).
 
 ## Next step
 
-Peter: `npm run spike` (approve both links as the sandbox buyer), check seller A's sandbox account,
-then `npm run dev` → http://localhost:3000/spike and pay. Paste the outputs. Claude reports GO/NO-GO.
+Peter: push, open the PR, merge it, and reply "Approved, start Phase 2". Claude then starts Phase 2
+(foundation: schema + migrations, `lib/paypal`, `lib/rules`, audit chain, seed) on a new branch
+`phase-2-foundation`, due 24 Oct. Paste the outputs. Claude reports GO/NO-GO.

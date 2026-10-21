@@ -83,3 +83,53 @@ describe("paypalFetch", () => {
     expect(res).toMatchObject({ ok: true, status: 204, json: {} });
   });
 });
+
+describe("network retries", () => {
+  it("retries a network failure with the same request id, then succeeds", async () => {
+    vi.useFakeTimers();
+    const netErr = new TypeError("fetch failed", {
+      cause: Object.assign(new AggregateError([]), {
+        errors: [{ code: "ETIMEDOUT" }, { code: "ENETUNREACH" }],
+      }),
+    });
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockRejectedValueOnce(netErr)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "O1" })));
+    const pending = paypalFetch("/v2/checkout/orders", {
+      method: "POST",
+      requestId: "deal-x-create-v1",
+      body: {},
+    });
+    await vi.runAllTimersAsync();
+    await expect(pending).resolves.toMatchObject({ ok: true, json: { id: "O1" } });
+    const keys = fetchMock.mock.calls
+      .slice(1)
+      .map(([, init]) => (init as RequestInit & { headers: Record<string, string> }).headers);
+    expect(keys.map((h) => h["PayPal-Request-Id"])).toEqual([
+      "deal-x-create-v1",
+      "deal-x-create-v1",
+    ]);
+    vi.useRealTimers();
+  });
+
+  it("gives up after 3 attempts and names the network error", async () => {
+    vi.useFakeTimers();
+    const netErr = new TypeError("fetch failed", { cause: { code: "ETIMEDOUT" } });
+    fetchMock.mockRejectedValue(netErr);
+    const pending = getAccessToken().catch((e: Error) => e);
+    await vi.runAllTimersAsync();
+    expect(String(await pending)).toContain("unreachable after 3 attempts (ETIMEDOUT)");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it("does not retry an HTTP error response", async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(new Response("{}", { status: 422 }));
+    const res = await paypalFetch("/v2/x", { method: "POST", requestId: "k" });
+    expect(res.status).toBe(422);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
