@@ -1,11 +1,11 @@
 # Progress
 
-_Last updated: 2026-10-20 (Nairobi)_
+_Last updated: 2026-10-21 (Nairobi)_
 
 ## Current phase
 
-**Phase 1: Payment spike (go/no-go)** — built; **waiting for Peter** to run it with the sandbox
-buyer and report. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
+**Phase 1: Payment spike (go/no-go)** — built; control run (no payee) passed 13/13. **Waiting for
+Peter** to repeat the seller-A payee run and the `/spike` browser test. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
 
 ## Done
 
@@ -30,13 +30,23 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   eligibility check; `<paypal-button type="pay">`; popup-blocked → redirect; `hasReturned/resume`.
   Routes `POST /api/spike/order`, `POST /api/spike/authorize`, `GET /api/spike/client-token`
   (all 404 in production).
+- `--self-payee` control run; the script waits for the order to be APPROVED before authorising;
+  approval links return to `/spike/returned` (tells the buyer to go back to the terminal).
+- **Control run (`npm run spike -- --self-payee`, no payee): 13/13 passed, GO.** Authorise HTTP 201
+  (expires +29 days), capture COMPLETED, same request id replayed the same capture (HTTP 200), new
+  request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one capture; void accepted, status
+  VOIDED, capture after void refused `AUTHORIZATION_VOIDED`. Details in `docs/TESTING.md`.
+- First seller-A payee run inconclusive: both orders stayed `PAYER_ACTION_REQUIRED` (Enter pressed
+  before approval finished). Fixed by the APPROVED wait above; needs repeating.
 
 ## Blocked / waiting on Peter
 
-- Run the spike steps (see "Next step").
+- Repeat the seller-A payee run and the `/spike` browser test (see "Next step").
+- Push the two local commits on `phase-1-payment-spike`.
 - Optional: a second sandbox Business account for seller B (seller A can stand in).
 
 ## Next step
 
-Peter: `npm run spike` (approve both links as the sandbox buyer), check seller A's sandbox account,
-then `npm run dev` → http://localhost:3000/spike and pay. Paste the outputs. Claude reports GO/NO-GO.
+Peter: `npm run spike` (approve both links as the sandbox buyer and wait for the script to see
+APPROVED), check seller A's sandbox account, then `npm run dev:poll` → http://localhost:3000/spike
+and pay. Paste the outputs. Claude reports GO/NO-GO.
