@@ -269,6 +269,37 @@ describe("held state → CAPTURED or IN_REVIEW (reconciliation: PayPal reports a
   });
 });
 
+describe("held state: repeat an unanswered capture or void (sweep)", () => {
+  it("repeats a capture while the authorisation is valid", () => {
+    expect(run(deal(), { type: "RETRY_PENDING", step: "capture", tries: 1 })).toEqual(
+      moved("CAPTURED", { paypal: "capture", onFailure: "CAPTURE_FAILED" }),
+    );
+  });
+  it("repeats a void", () => {
+    expect(run(deal(), { type: "RETRY_PENDING", step: "void", tries: 2 })).toEqual(
+      moved("VOIDED", { paypal: "void", onFailure: "IN_REVIEW" }),
+    );
+  });
+  it("hands over to an admin after 6 unanswered tries, then waits", () => {
+    expect(run(deal(), { type: "RETRY_PENDING", step: "capture", tries: 6 })).toEqual(
+      moved("IN_REVIEW"),
+    );
+    expect(
+      run(deal({ state: "IN_REVIEW" }), { type: "RETRY_PENDING", step: "void", tries: 6 }),
+    ).toEqual(stayed);
+  });
+  it("sends a capture to review instead of repeating it past the hard limit", () => {
+    const d = run(deal(), { type: "RETRY_PENDING", step: "capture", tries: 1 }, at(29 * D));
+    expect(d).toEqual(moved("IN_REVIEW"));
+    expect(d.kind === "move" && d.paypal).toBeFalsy();
+  });
+  it("does nothing once settled", () => {
+    expect(
+      run(deal({ state: "CAPTURED" }), { type: "RETRY_PENDING", step: "capture", tries: 1 }),
+    ).toEqual(stayed);
+  });
+});
+
 describe("CAPTURED → DISPUTED → CLOSED", () => {
   it("opens and resolves a verified dispute", () => {
     expect(run(deal({ state: "CAPTURED" }), { type: "DISPUTE_CREATED", verified: true })).toEqual(
@@ -343,6 +374,7 @@ describe("coverage of states", () => {
       { type: "ADMIN_DECISION", decision: "void", reason: "r" },
       { type: "AUTH_ENDED", voidedByUs: false },
       { type: "AUTH_CAPTURED", capturedByUs: false },
+      { type: "RETRY_PENDING", step: "capture", tries: 0 },
       { type: "DISPUTE_CREATED", verified: true },
       { type: "DISPUTE_RESOLVED", verified: true },
       { type: "CANCEL" },

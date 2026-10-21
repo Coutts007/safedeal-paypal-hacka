@@ -24,6 +24,7 @@ import type { PaypalResult } from "@/lib/paypal/result";
 import {
   defaultDeadlines,
   HELD_STATES,
+  MAX_PENDING_TRIES,
   nextState,
   type DealSnapshot,
   type Decision,
@@ -170,27 +171,52 @@ async function runPaypalStep(ctx: Ctx, step: PaypalStep): Promise<StepResult> {
   if (step === "authorize") {
     const requestId = paypalRequestId(deal.id, "authorize", deal.paymentAttempt);
     const res = await deps.paypal.authorizeOrder(payment.paypalOrderId, requestId, deal.id);
-    if (!res.ok) {
-      await tx
-        .update(payments)
-        .set({ status: `AUTHORIZE_FAILED:${res.issue}`.slice(0, 120), updatedAt: now })
-        .where(eq(payments.id, payment.id));
-      return failure(res);
+    let auth: ordersApi.Authorization | undefined = res.ok ? res.value : undefined;
+    let reconciled = false;
+    if (!res.ok && !res.retryable) {
+      // E.g. ORDER_ALREADY_AUTHORIZED: an earlier attempt worked but its reply was lost, or PayPal
+      // forgot the request id (it keeps them for about 6 hours). Use the authorisation it holds.
+      const order = await deps.paypal.getOrder(payment.paypalOrderId, deal.id);
+      const held = order.ok
+        ? order.value.purchase_units?.[0]?.payments?.authorizations?.[0]
+        : undefined;
+      if (held && held.status === "CREATED") {
+        auth = {
+          id: held.id,
+          status: held.status,
+          expiresAt: held.expiration_time ? new Date(held.expiration_time) : null,
+        };
+        reconciled = true;
+      }
+    }
+    if (!auth) {
+      if (!res.ok && !res.retryable) {
+        await tx
+          .update(payments)
+          .set({ status: `AUTHORIZE_FAILED:${res.issue}`.slice(0, 120), updatedAt: now })
+          .where(eq(payments.id, payment.id));
+      }
+      return failure(res as PaypalResult<never> & { ok: false });
     }
     await tx
       .update(payments)
-      .set({ authorizationId: res.value.id, status: res.value.status, updatedAt: now })
+      .set({ authorizationId: auth.id, status: auth.status, updatedAt: now })
       .where(eq(payments.id, payment.id));
     const defaultsAt = defaultDeadlines(now, { timeScale: deps.timeScale });
     return {
       ok: true,
       patch: {
         authorizedAt: now,
-        authExpiresAt: res.value.expiresAt,
+        authExpiresAt: auth.expiresAt,
         shipBy: deal.shipBy ?? defaultsAt.shipBy,
         deliverBy: deal.deliverBy ?? defaultsAt.deliverBy,
       },
-      info: { requestId, authorizationId: res.value.id, debugId: res.debugId },
+      info: {
+        requestId,
+        authorizationId: auth.id,
+        debugId: res.debugId,
+        ...(reconciled && { reconciled: true, issue: !res.ok ? res.issue : undefined }),
+      },
     };
   }
 
@@ -243,6 +269,35 @@ async function stepSent(tx: Tx, dealId: string, step: "capture" | "void"): Promi
     )
     .limit(1);
   return Boolean(row);
+}
+
+/**
+ * A capture or void still waiting for PayPal's answer: the latest PayPal outcome logged for the
+ * deal is `paypal.pending`. Returns the step and how many tries have gone unanswered.
+ */
+async function pendingStep(tx: Tx, dealId: string) {
+  const rows = await tx
+    .select({ action: auditLog.action, details: auditLog.detailsJson })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.dealId, dealId),
+        inArray(auditLog.action, ["paypal.pending", "paypal.failed", "state.changed"]),
+      ),
+    )
+    .orderBy(desc(auditLog.id))
+    .limit(MAX_PENDING_TRIES + 1);
+  const stepOf = (r: (typeof rows)[number]) =>
+    (r.details as { paypal?: { step?: string } }).paypal?.step;
+  const first = rows[0];
+  const step = first?.action === "paypal.pending" ? stepOf(first) : undefined;
+  if (step !== "capture" && step !== "void") return null;
+  let tries = 0;
+  for (const r of rows) {
+    if (r.action !== "paypal.pending" || stepOf(r) !== step) break;
+    tries++;
+  }
+  return { step, tries } as const;
 }
 
 /** Turn PayPal's view of the authorisation into a reconciliation trigger, if it needs one. */
@@ -323,7 +378,8 @@ async function transition(
           .set({ ...patch, updatedAt: now })
           .where(eq(deals.id, dealId));
       }
-      if (trigger.type !== "SWEEP") await audit("trigger.accepted", base);
+      // Sweep runs every few minutes; logging every "nothing to do" would flood the audit log.
+      if (opts.actor !== "sweep") await audit("trigger.accepted", base);
       return { outcome: "unchanged", state: from, reason: decision.reason } as const;
     }
 
@@ -570,8 +626,13 @@ export async function onSweep(deps = defaultDeps()) {
         const payment = await currentPayment(tx, deal);
         if (payment?.authorizationId) {
           const auth = await deps.paypal.getAuth(payment.authorizationId, id);
-          const reconcile = auth.ok && (await authStatusTrigger(tx, id, auth.value.status));
+          if (!auth.ok) return { type: "SWEEP" };
+          const reconcile = await authStatusTrigger(tx, id, auth.value.status);
           if (reconcile) return reconcile;
+          // PayPal still holds the money, so an unanswered capture or void did not happen and is
+          // safe to repeat with the same request id (even after PayPal has forgotten that id).
+          const pending = auth.value.status === "CREATED" ? await pendingStep(tx, id) : null;
+          if (pending) return { type: "RETRY_PENDING", ...pending };
         }
         return { type: "SWEEP" };
       },

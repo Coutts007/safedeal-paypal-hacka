@@ -15,6 +15,9 @@ export const DEFAULTS = {
   hardLimitAfterMs: 29 * DAY,
 } as const;
 
+/** Unanswered PayPal calls the sweep repeats (same request id) before handing over to an admin. */
+export const MAX_PENDING_TRIES = 6;
+
 /** States in which PayPal is holding the buyer's money. */
 export const HELD_STATES: readonly DealState[] = [
   "AUTHORIZED",
@@ -52,6 +55,8 @@ export type Trigger =
   | { type: "AUTH_ENDED"; voidedByUs: boolean }
   /** PayPal reports the authorisation captured. `capturedByUs`: we had sent a capture. */
   | { type: "AUTH_CAPTURED"; capturedByUs: boolean }
+  /** A capture or void we sent got no answer and PayPal still holds the money; `tries` so far. */
+  | { type: "RETRY_PENDING"; step: "capture" | "void"; tries: number }
   | { type: "DISPUTE_CREATED"; verified: boolean }
   | { type: "DISPUTE_RESOLVED"; verified: boolean }
   | { type: "CANCEL" };
@@ -238,6 +243,35 @@ export function nextState(d: DealSnapshot, trigger: Trigger, now: Date, t: Timin
         kind: "move",
         to: "IN_REVIEW",
         reason: "PayPal reports a capture SafeDeal did not make",
+      };
+
+    case "RETRY_PENDING":
+      if (!HELD_STATES.includes(d.state)) return stay(`nothing to retry in state ${d.state}`);
+      if (trigger.tries >= MAX_PENDING_TRIES) {
+        if (d.state === "IN_REVIEW") return stay("waiting for an admin after unanswered retries");
+        return {
+          kind: "move",
+          to: "IN_REVIEW",
+          reason: `PayPal did not answer the ${trigger.step} after ${trigger.tries} tries`,
+        };
+      }
+      if (trigger.step === "capture") {
+        const limit = hardLimit(d, t);
+        if (!limit || now >= limit) {
+          return {
+            kind: "move",
+            to: "IN_REVIEW",
+            reason: "an unanswered capture can no longer be repeated: the authorisation is too old",
+          };
+        }
+        return captureIfValid(d, now, t, "repeating a capture PayPal did not answer");
+      }
+      return {
+        kind: "move",
+        to: "VOIDED",
+        paypal: "void",
+        onFailure: "IN_REVIEW",
+        reason: "repeating a void PayPal did not answer",
       };
 
     case "DISPUTE_CREATED":
