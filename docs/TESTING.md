@@ -91,3 +91,24 @@ Postgres 16 service) on every push. Database tests create and migrate their own 
   unknown authorisation reported as non-retryable.
 - `npm run db:seed -- --agreed`: two demo deals created and AGREED (95.00 and 40.00 USD).
 - Type check, lint, format: clean. `npm run build`: succeeded.
+
+### Phase 3 (2026-10-21, local)
+
+- `npm test`: 116 passed. `npm run test:db`: 46 passed, including the API routes end to end with a
+  fake PayPal: create, role views (buyer never sees the seller token), 404 on a wrong token,
+  stale terms hash refused after an edit, buyer cannot change the payee, DRAFT → AGREED →
+  AUTHORIZED → SHIPPED → CAPTURED, role checks (403), forged order id refused, declined
+  authorisation retried with `create-v2` / `authorize-v2`, cancel, cron route secret and ship-by
+  void, webhook route (unverified refused and not stored, 503 when verification is unavailable,
+  verified stored once and processed, repeat ignored), health.
+- Dev server (`npm run dev:poll`) with the real sandbox: created a deal through the API, both
+  confirmed → AGREED, `POST /order` created a real sandbox order and a second call returned the
+  same id, authorising the unapproved order was refused ("the PayPal order is not approved").
+- Headless Chromium at 360 px: home, seller and buyer Deal Rooms render without horizontal
+  scrolling; the v6 PayPal button appeared for the buyer; a wrong token gives 404.
+- `scripts/cron-sweep.mjs` against the dev server: HTTP 200. `scripts/migrate.ts`: applied.
+- `render.yaml` validated against https://render.com/schema/render.yaml.json (0 errors; the
+  check catches planted mistakes). Render CLI is not installed, so not validated by Render itself.
+- `next build`: succeeded. Lint, type check, format: clean.
+- Not verified by Claude: paying as the sandbox buyer in the browser, Render deployment, PayPal
+  webhooks to the live URL. These are Peter's Gate 2 steps.
