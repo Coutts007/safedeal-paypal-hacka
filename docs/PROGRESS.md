@@ -4,8 +4,9 @@ _Last updated: 2026-10-21 (Nairobi)_
 
 ## Current phase
 
-**Phase 1: Payment spike (go/no-go)** — built; control run (no payee) passed 13/13. **Waiting for
-Peter** to repeat the seller-A payee run and the `/spike` browser test. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
+**Phase 1: Payment spike (go/no-go)** — control run 13/13 and seller-A payee run 15/15, both GO.
+**Waiting for Peter** to confirm the capture landed in seller A's sandbox account and to run the
+`/spike` browser test. Then the Phase 1 report. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
 
 ## Done
 
@@ -37,16 +38,17 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one capture; void accepted, status
   VOIDED, capture after void refused `AUTHORIZATION_VOIDED`. Details in `docs/TESTING.md`.
 - First seller-A payee run inconclusive: both orders stayed `PAYER_ACTION_REQUIRED` (Enter pressed
-  before approval finished). Fixed by the APPROVED wait above; needs repeating.
+  before approval finished). Fixed by the APPROVED wait above.
+- **Seller-A payee run (`npm run spike`): 15/15 passed, GO.** Same results as the control run, with
+  the order payee set to seller A. Details in `docs/TESTING.md`.
 
 ## Blocked / waiting on Peter
 
-- Repeat the seller-A payee run and the `/spike` browser test (see "Next step").
-- Push the two local commits on `phase-1-payment-spike`.
+- Check seller A's sandbox account for the 12.00 USD capture (order `8A320971KG958492H`).
+- Run the `/spike` browser test (see "Next step").
 - Optional: a second sandbox Business account for seller B (seller A can stand in).
 
 ## Next step
 
-Peter: `npm run spike` (approve both links as the sandbox buyer and wait for the script to see
-APPROVED), check seller A's sandbox account, then `npm run dev:poll` → http://localhost:3000/spike
-and pay. Paste the outputs. Claude reports GO/NO-GO.
+Peter: check seller A's sandbox account, then `npm run dev:poll` → http://localhost:3000/spike and
+pay. Paste the outputs. Claude reports GO/NO-GO.

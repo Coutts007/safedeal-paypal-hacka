@@ -46,4 +46,11 @@ CI (`.github/workflows/ci.yml`) runs lint, type check and unit tests on every pu
   accepted, status VOIDED, capture after void refused `AUTHORIZATION_VOIDED`. Run
   `32d557ca-d5cc-40f5-ac77-07c91207f806`.
 - First seller-A run: both orders stayed `PAYER_ACTION_REQUIRED` (Enter pressed before approval
-  finished); the script now waits for APPROVED. Seller-A payee run still to repeat.
+  finished); the script now waits for APPROVED.
+- **Peter, `npm run spike` (payee = seller A): 15/15 passed, GO.** Payee in the order response
+  matched seller A's email (`merchant_id` not returned in the create response). Order A: approved,
+  authorise HTTP 201 (expires 2026-11-19, +29 days), capture COMPLETED, same request id replayed the
+  same capture (HTTP 200), new request id refused `AUTHORIZATION_ALREADY_CAPTURED`, exactly one
+  capture. Order B: approved, authorised, void HTTP 200, status VOIDED, capture after void refused
+  `AUTHORIZATION_VOIDED`. Run `a132c242-e872-4c50-af59-9598f64a17e6`.
+  Still to confirm by hand: the 12.00 USD capture shows in seller A's sandbox account.
