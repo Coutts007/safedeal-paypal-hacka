@@ -59,7 +59,11 @@ export const paypalError = (status: number | null, issue: string, retryable = fa
 /** A fake PayPal that behaves like the sandbox did in the Phase 1 spike. */
 export function fakePaypal() {
   const authStatus = new Map<string, string>();
+  let orders = 0;
   const port = {
+    createOrder: vi.fn<PaypalPort["createOrder"]>(async (src) =>
+      ok({ id: `O${src.publicRef}N${++orders}`, status: "PAYER_ACTION_REQUIRED" }, 201),
+    ),
     getOrder: vi.fn<PaypalPort["getOrder"]>(async (orderId, dealId) =>
       ok({
         id: orderId,

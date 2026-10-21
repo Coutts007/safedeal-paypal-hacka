@@ -42,6 +42,7 @@ import {
 // connection while the lock is held.
 
 export type PaypalPort = {
+  createOrder: typeof ordersApi.createOrder;
   getOrder: typeof ordersApi.getOrder;
   authorizeOrder: typeof ordersApi.authorizeOrder;
   capture: typeof paymentsApi.capture;
@@ -61,6 +62,7 @@ export function defaultDeps(): EngineDeps {
     defaults = {
       db,
       paypal: {
+        createOrder: ordersApi.createOrder,
         getOrder: ordersApi.getOrder,
         authorizeOrder: ordersApi.authorizeOrder,
         capture: paymentsApi.capture,
@@ -73,6 +75,11 @@ export function defaultDeps(): EngineDeps {
     };
   }
   return defaults;
+}
+
+/** Test hook: replace the default dependencies used by routes (undefined restores them). */
+export function setEngineDeps(deps: EngineDeps | undefined): void {
+  defaults = deps;
 }
 
 export type EngineResult =
@@ -432,6 +439,89 @@ async function transition(
       return { outcome: "failed", from, to, reason: decision.reason, issue: failedIssue } as const;
     }
     return { outcome: "moved", from, to, reason: decision.reason } as const;
+  });
+}
+
+// ---- Payment set-up (no state change) ----------------------------------------------------------
+
+export type PreparePaymentResult = { ok: true; orderId: string } | { ok: false; reason: string };
+
+/** Order statuses that can still be approved and authorised. */
+const USABLE_ORDER = new Set(["CREATED", "SAVED", "PAYER_ACTION_REQUIRED", "APPROVED"]);
+
+/**
+ * Create (or reuse) the PayPal order for the deal's current payment attempt. Amount, currency,
+ * payee and description come from the locked terms on the deal row, never from the browser.
+ * A new attempt (request id `create-v<n+1>`) starts only after a failed authorisation or when the
+ * previous order can no longer be used.
+ */
+export async function preparePayment(
+  dealId: string,
+  deps = defaultDeps(),
+): Promise<PreparePaymentResult> {
+  return deps.db.transaction(async (tx) => {
+    const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).for("no key update");
+    if (!deal) return { ok: false, reason: "deal not found" };
+    if (deal.state !== "AGREED" && deal.state !== "FUNDING_FAILED") {
+      return { ok: false, reason: `payment is not possible in state ${deal.state}` };
+    }
+    if (!deal.amount || !deal.payeeEmail || !deal.confirmedTermsId) {
+      return { ok: false, reason: "the terms are not locked yet" };
+    }
+    const now = deps.now();
+    const audit = (action: string, details: Record<string, unknown>) =>
+      appendAudit(tx, { dealId, actor: "buyer", action, details }, now);
+
+    let attempt = deal.paymentAttempt;
+    const existing = await currentPayment(tx, deal);
+    if (existing) {
+      let usable = !existing.status.startsWith("AUTHORIZE_FAILED");
+      if (usable) {
+        const order = await deps.paypal.getOrder(existing.paypalOrderId, dealId);
+        usable = order.ok && USABLE_ORDER.has(order.value.status);
+        if (!order.ok && order.retryable) {
+          return { ok: false, reason: "PayPal is not answering; try again in a moment" };
+        }
+      }
+      if (usable) return { ok: true, orderId: existing.paypalOrderId };
+      attempt += 1;
+      await tx
+        .update(deals)
+        .set({ paymentAttempt: attempt, version: deal.version + 1, updatedAt: now })
+        .where(eq(deals.id, dealId));
+    }
+
+    const [terms] = await tx
+      .select({ json: dealTerms.termsJson })
+      .from(dealTerms)
+      .where(eq(dealTerms.id, deal.confirmedTermsId));
+    const item = dealTermsSchema.parse(terms.json).item;
+    const requestId = paypalRequestId(dealId, "create", attempt);
+    const res = await deps.paypal.createOrder(
+      {
+        dealId,
+        publicRef: deal.publicRef,
+        amount: deal.amount,
+        currency: "USD",
+        payeeEmail: deal.payeeEmail,
+        description: item,
+      },
+      requestId,
+    );
+    if (!res.ok) {
+      await audit("paypal.create_failed", { attempt, issue: res.issue, debugId: res.debugId });
+      return { ok: false, reason: `PayPal could not create the order (${res.issue})` };
+    }
+    await tx.insert(payments).values({
+      dealId,
+      paypalOrderId: res.value.id,
+      status: res.value.status,
+      amount: deal.amount,
+      currency: deal.currency,
+      attempt,
+    });
+    await audit("payment.order_created", { attempt, orderId: res.value.id, requestId });
+    return { ok: true, orderId: res.value.id };
   });
 }
 
