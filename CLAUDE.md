@@ -40,8 +40,12 @@ Full brief: `docs/BUILD_PLAN.md`. Current status: `docs/PROGRESS.md`. Decisions:
 - LLM calls only from `lib/ai/`. Log model, prompt version, tokens and latency, never chat content.
 - Times are stored in UTC (`timestamptz`); shown to users in Africa/Nairobi.
 - Money is a string or `numeric(10,2)`, never a float. Sandbox cap: US$500 per deal.
-- Tests: Vitest for unit/integration (`*.test.ts` next to the code or in `tests/`), Playwright for
-  end to end (`e2e/`).
+- Tests: Vitest for unit (`*.test.ts`), database (`*.db.test.ts`) and sandbox
+  (`*.sandbox.test.ts`) tests next to the code; helpers in `tests/`. Playwright for end to end
+  (`e2e/`).
+- Rule engine: every trigger is a function in `lib/rules/engine.ts` that locks the deal row
+  (`FOR NO KEY UPDATE`), decides with the pure `nextState` in `lib/rules/machine.ts`, calls PayPal
+  with `paypalRequestId(...)`, updates the deal and appends to `audit_log` in one transaction.
 - Commit after each working step; never commit `.env*` (except `.env.example`) or `.env.local.notes`.
 
 ## Commands
@@ -49,11 +53,14 @@ Full brief: `docs/BUILD_PLAN.md`. Current status: `docs/PROGRESS.md`. Decisions:
 ```
 npm run dev          # http://localhost:3000
 npm test             # vitest unit tests
+npm run test:db      # database tests (Docker Postgres, database safedeal_test)
+npm run test:sandbox # PayPal sandbox integration test (uses .env)
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 npm run db:up        # local Postgres in Docker
 npm run db:generate  # drizzle migrations from schema
 npm run db:migrate   # apply migrations
+npm run db:seed      # two demo deals (add -- --agreed to confirm both sides)
 ```
 
 ## References
