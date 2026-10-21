@@ -274,6 +274,42 @@ describe("sweep", () => {
   });
 });
 
+describe("reconciliation (a reply from PayPal was lost)", () => {
+  it("a capture that went through after a timeout is recorded as CAPTURED by the sweep", async () => {
+    const { deal, fake, deps, authId } = await authorizedDeal();
+    fake.port.capture.mockImplementationOnce(async (id) => {
+      fake.authStatus.set(id, "CAPTURED"); // PayPal did it, but we never heard back
+      return paypalError(null, "PayPal unreachable", true);
+    });
+    expect(await onBuyerConfirmed(deal.id, deps)).toMatchObject({ outcome: "pending" });
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("CAPTURED");
+    const [p] = await db.select().from(payments).where(eq(payments.dealId, deal.id));
+    expect(p.status).toBe("CAPTURED");
+    expect(fake.authStatus.get(authId)).toBe("CAPTURED");
+  });
+
+  it("a void that went through after a timeout ends as VOIDED, not EXPIRED", async () => {
+    const { deal, fake, deps, advance } = await authorizedDeal();
+    advance(48 * H);
+    fake.port.voidAuth.mockImplementationOnce(async (id) => {
+      fake.authStatus.set(id, "VOIDED");
+      return paypalError(504, "GATEWAY_TIMEOUT", true);
+    });
+    expect((await onSweep(deps))[0].result).toMatchObject({ outcome: "pending" });
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("VOIDED");
+  });
+
+  it("a capture SafeDeal never sent goes to review", async () => {
+    const { deal, fake, deps, authId } = await authorizedDeal();
+    fake.authStatus.set(authId, "CAPTURED");
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("IN_REVIEW");
+    expect(await db.select().from(reviews).where(eq(reviews.dealId, deal.id))).toHaveLength(1);
+  });
+});
+
 describe("review", () => {
   it("buyer problem opens a review with the note; admin void closes it", async () => {
     const { deal, deps } = await authorizedDeal();

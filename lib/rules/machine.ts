@@ -48,8 +48,10 @@ export type Trigger =
   | { type: "BUYER_PROBLEM" }
   | { type: "SWEEP" }
   | { type: "ADMIN_DECISION"; decision: "capture" | "void"; reason: string }
-  /** PayPal reports the authorisation voided or expired, and we did not void it. */
-  | { type: "AUTH_ENDED" }
+  /** PayPal reports the authorisation voided or expired. `voidedByUs`: we had sent a void. */
+  | { type: "AUTH_ENDED"; voidedByUs: boolean }
+  /** PayPal reports the authorisation captured. `capturedByUs`: we had sent a capture. */
+  | { type: "AUTH_CAPTURED"; capturedByUs: boolean }
   | { type: "DISPUTE_CREATED"; verified: boolean }
   | { type: "DISPUTE_RESOLVED"; verified: boolean }
   | { type: "CANCEL" };
@@ -214,9 +216,29 @@ export function nextState(d: DealSnapshot, trigger: Trigger, now: Date, t: Timin
       };
 
     case "AUTH_ENDED":
-      if (!HELD_STATES.includes(d.state))
+      if (!HELD_STATES.includes(d.state)) {
         return stay(`authorisation end ignored in state ${d.state}`);
+      }
+      // Our own void whose reply was lost is still a void, not an expiry.
+      if (trigger.voidedByUs) {
+        return { kind: "move", to: "VOIDED", reason: "PayPal confirms the void SafeDeal sent" };
+      }
       return { kind: "move", to: "EXPIRED", reason: "PayPal voided or expired the authorisation" };
+
+    case "AUTH_CAPTURED":
+      if (!HELD_STATES.includes(d.state)) return stay(`capture ignored in state ${d.state}`);
+      if (trigger.capturedByUs) {
+        return {
+          kind: "move",
+          to: "CAPTURED",
+          reason: "PayPal confirms the capture SafeDeal sent",
+        };
+      }
+      return {
+        kind: "move",
+        to: "IN_REVIEW",
+        reason: "PayPal reports a capture SafeDeal did not make",
+      };
 
     case "DISPUTE_CREATED":
       if (!trigger.verified) return reject("the dispute event is not verified");

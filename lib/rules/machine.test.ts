@@ -236,11 +236,36 @@ describe("IN_REVIEW → CAPTURED or VOIDED (admin decides)", () => {
 
 describe("held state → EXPIRED (PayPal voided or expired the authorisation)", () => {
   it.each(HELD_STATES)("moves from %s", (state) => {
-    expect(run(deal({ state }), { type: "AUTH_ENDED" })).toEqual(moved("EXPIRED"));
+    expect(run(deal({ state }), { type: "AUTH_ENDED", voidedByUs: false })).toEqual(
+      moved("EXPIRED"),
+    );
   });
   it("ignores the event once we voided or captured", () => {
-    expect(run(deal({ state: "VOIDED" }), { type: "AUTH_ENDED" })).toEqual(stayed);
-    expect(run(deal({ state: "CAPTURED" }), { type: "AUTH_ENDED" })).toEqual(stayed);
+    expect(run(deal({ state: "VOIDED" }), { type: "AUTH_ENDED", voidedByUs: false })).toEqual(
+      stayed,
+    );
+    expect(run(deal({ state: "CAPTURED" }), { type: "AUTH_ENDED", voidedByUs: false })).toEqual(
+      stayed,
+    );
+  });
+  it("records our own void whose reply was lost as VOIDED, not EXPIRED", () => {
+    expect(run(deal(), { type: "AUTH_ENDED", voidedByUs: true })).toEqual(moved("VOIDED"));
+  });
+});
+
+describe("held state → CAPTURED or IN_REVIEW (reconciliation: PayPal reports a capture)", () => {
+  it("accepts a capture we sent whose reply was lost", () => {
+    const d = run(deal({ state: "SHIPPED" }), { type: "AUTH_CAPTURED", capturedByUs: true });
+    expect(d).toEqual(moved("CAPTURED"));
+    expect(d.kind === "move" && d.paypal).toBeFalsy();
+  });
+  it("sends a capture we did not make to review", () => {
+    expect(run(deal(), { type: "AUTH_CAPTURED", capturedByUs: false })).toEqual(moved("IN_REVIEW"));
+  });
+  it("ignores it once the deal is settled", () => {
+    expect(run(deal({ state: "CAPTURED" }), { type: "AUTH_CAPTURED", capturedByUs: true })).toEqual(
+      stayed,
+    );
   });
 });
 
@@ -316,7 +341,8 @@ describe("coverage of states", () => {
       { type: "BUYER_PROBLEM" },
       { type: "SWEEP" },
       { type: "ADMIN_DECISION", decision: "void", reason: "r" },
-      { type: "AUTH_ENDED" },
+      { type: "AUTH_ENDED", voidedByUs: false },
+      { type: "AUTH_CAPTURED", capturedByUs: false },
       { type: "DISPUTE_CREATED", verified: true },
       { type: "DISPUTE_RESOLVED", verified: true },
       { type: "CANCEL" },

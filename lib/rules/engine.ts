@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { appendAudit } from "@/lib/audit";
 import { getDb, type Db, type Tx } from "@/lib/db";
 import {
+  auditLog,
   confirmations,
   deals,
   dealTerms,
@@ -226,6 +227,45 @@ async function runPaypalStep(ctx: Ctx, step: PaypalStep): Promise<StepResult> {
     return { ok: true, patch: {}, info: { requestId, reconciled: true, issue: res.issue } };
   }
   return failure(res);
+}
+
+/** Did the engine already send this step for the deal? Its reply may have been lost. */
+async function stepSent(tx: Tx, dealId: string, step: "capture" | "void"): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: auditLog.id })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.dealId, dealId),
+        inArray(auditLog.action, ["paypal.pending", "paypal.failed"]),
+        sql`${auditLog.detailsJson} -> 'paypal' ->> 'step' = ${step}`,
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/** Turn PayPal's view of the authorisation into a reconciliation trigger, if it needs one. */
+async function authStatusTrigger(tx: Tx, dealId: string, status: string): Promise<Trigger | null> {
+  if (status === "VOIDED" || status === "EXPIRED") {
+    return {
+      type: "AUTH_ENDED",
+      voidedByUs: status === "VOIDED" && (await stepSent(tx, dealId, "void")),
+    };
+  }
+  if (status === "CAPTURED" || status === "PARTIALLY_CAPTURED") {
+    return { type: "AUTH_CAPTURED", capturedByUs: await stepSent(tx, dealId, "capture") };
+  }
+  return null;
+}
+
+/** After a reconciliation move, record PayPal's status on the payment row too. */
+async function syncPaymentStatus({ tx, deal, now }: Ctx, to: DealState) {
+  if (to !== "CAPTURED" && to !== "VOIDED" && to !== "EXPIRED") return;
+  await tx
+    .update(payments)
+    .set({ status: to, updatedAt: now })
+    .where(and(eq(payments.dealId, deal.id), eq(payments.attempt, deal.paymentAttempt)));
 }
 
 async function openReview(tx: Tx, dealId: string, reason: string, note?: string) {
@@ -525,17 +565,17 @@ export async function onSweep(deps = defaultDeps()) {
       deps,
       id,
       async ({ tx, deal }) => {
-        // Reconcile first: if PayPal already voided or expired the hold, deadlines no longer apply.
+        // Reconcile first: if PayPal already ended or captured the hold (perhaps through a call
+        // whose reply was lost), that decides the state and deadlines no longer apply.
         const payment = await currentPayment(tx, deal);
         if (payment?.authorizationId) {
           const auth = await deps.paypal.getAuth(payment.authorizationId, id);
-          if (auth.ok && (auth.value.status === "VOIDED" || auth.value.status === "EXPIRED")) {
-            return { type: "AUTH_ENDED" };
-          }
+          const reconcile = auth.ok && (await authStatusTrigger(tx, id, auth.value.status));
+          if (reconcile) return reconcile;
         }
         return { type: "SWEEP" };
       },
-      { actor: "sweep", skipLocked: true },
+      { actor: "sweep", skipLocked: true, effects: syncPaymentStatus },
     );
     results.push({ dealId: id, result });
   }
@@ -574,15 +614,15 @@ export async function onPaypalWebhook(
     return transition(
       deps,
       dealId,
-      async () => {
+      async ({ tx }) => {
         const auth = await deps.paypal.getAuth(authId, dealId);
         if (!auth.ok) return `could not re-read the authorization (${auth.issue})`;
         if (auth.value.status !== "VOIDED" && auth.value.status !== "EXPIRED") {
           return `PayPal reports the authorization as ${auth.value.status}`;
         }
-        return { type: "AUTH_ENDED" };
+        return (await authStatusTrigger(tx, dealId, auth.value.status)) as Trigger;
       },
-      actorOpts,
+      { ...actorOpts, effects: syncPaymentStatus },
     );
   }
 
