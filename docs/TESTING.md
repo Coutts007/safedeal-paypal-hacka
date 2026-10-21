@@ -70,7 +70,12 @@ Postgres 16 service) on every push. Database tests create and migrate their own 
 
 ### Phase 2 (2026-10-21)
 
-- `npm test`: 111 unit tests passed, including one per section 7 transition
+- After the review follow-up: `npm test` 116 passed, `npm run test:db` 31 passed (adds: the sweep
+  repeats an unanswered capture with the same key; a void unanswered 6 times goes to review and
+  the sweep then stops calling PayPal and stops writing audit rows; ORDER_ALREADY_AUTHORIZED uses
+  the order's existing authorisation), `npm run test:sandbox` 3 passed, 1 skipped (adds seller B
+  as payee). Seed: A David → Shemaya, B Shemaya → David, both AGREED.
+- First run: `npm test`: 111 unit tests passed, including one per section 7 transition
   (`lib/rules/machine.test.ts`) and the rule 1 guard (`lib/rules/rule1.test.ts`; checked that it
   fails on a planted import of `lib/paypal/payments`).
 - `npm run test:db`: 28 tests passed against Docker Postgres 16: audit chain (links, refuses

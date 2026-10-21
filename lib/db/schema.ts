@@ -50,6 +50,9 @@ export const deals = pgTable("deals", {
   sellerToken: text("seller_token").notNull().unique(),
   buyerToken: text("buyer_token").notNull().unique(),
   state: dealState("state").notNull().default("DRAFT"),
+  // Display names shown in the Deal Room; not used for payment.
+  sellerName: text("seller_name"),
+  buyerName: text("buyer_name"),
   // Set when both parties confirm the same terms hash (no FK: deal_terms references deals).
   confirmedTermsId: uuid("confirmed_terms_id"),
   amount: money("amount"),

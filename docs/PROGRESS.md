@@ -62,12 +62,14 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   `onAdminDecision`, `onCancel`, `onSweep`, `onPaypalWebhook`.
 - `scripts/seed.ts` (`npm run db:seed`): demo deals A (A15, US$95) and B (AF1, US$40).
 - CI runs DB tests with a Postgres service. Results in `docs/TESTING.md`; decisions logged.
+- Review follow-up (Peter's answers): demo parties Shemaya and David (`deals.seller_name`,
+  `buyer_name`, migration `0002`); seller B in use; plan amendments written into BUILD_PLAN and
+  CLAUDE.md; sweep repeats unanswered captures/voids (same key, only while PayPal still holds the
+  money; review after 6 tries); authorise reconciles ORDER_ALREADY_AUTHORIZED.
 
 ## Blocked / waiting on Peter
 
 - Review and merge the PR for `phase-2-foundation`.
-- Choose names for the demo parties (seed uses placeholders).
-- Optional: a second sandbox Business account for seller B (B falls back to seller A).
 
 ## Next step
 

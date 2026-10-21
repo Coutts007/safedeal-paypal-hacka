@@ -310,6 +310,88 @@ describe("reconciliation (a reply from PayPal was lost)", () => {
   });
 });
 
+describe("unanswered PayPal calls (risk follow-up)", () => {
+  it("the sweep repeats an unanswered capture with the same request id", async () => {
+    const { deal, fake, deps } = await authorizedDeal();
+    fake.port.capture.mockResolvedValueOnce(paypalError(null, "PayPal unreachable", true));
+    expect(await onBuyerConfirmed(deal.id, deps)).toMatchObject({ outcome: "pending" });
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("CAPTURED");
+    expect(fake.port.capture.mock.calls.map((c) => c[1])).toEqual([
+      `deal-${deal.id}-capture-v1`,
+      `deal-${deal.id}-capture-v1`,
+    ]);
+  });
+
+  it("hands a void to an admin after 6 unanswered tries, then stops calling PayPal", async () => {
+    const { deal, fake, deps, advance } = await authorizedDeal();
+    advance(48 * H);
+    fake.port.voidAuth.mockResolvedValue(paypalError(503, "SERVICE_UNAVAILABLE", true));
+    for (let i = 0; i < 6; i++) await onSweep(deps);
+    expect(fake.port.voidAuth).toHaveBeenCalledTimes(6);
+    expect((await getDeal(deal.id)).state).toBe("AUTHORIZED");
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("IN_REVIEW");
+    const audits = async () =>
+      (await db.select().from(auditLog).where(eq(auditLog.dealId, deal.id))).length;
+    const before = await audits();
+    await onSweep(deps);
+    await onSweep(deps);
+    expect(fake.port.voidAuth).toHaveBeenCalledTimes(6);
+    expect(await audits()).toBe(before);
+    const [review] = await db.select().from(reviews).where(eq(reviews.dealId, deal.id));
+    expect(review.reason).toContain("did not answer the void after 6 tries");
+  });
+
+  it("an authorisation refused as already done is taken from the order", async () => {
+    const { deal, fake, deps, orderId } = await agreedDeal();
+    fake.port.authorizeOrder.mockResolvedValueOnce(paypalError(422, "ORDER_ALREADY_AUTHORIZED"));
+    fake.port.getOrder
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        debugId: "dbg",
+        value: {
+          id: orderId,
+          status: "APPROVED",
+          purchase_units: [
+            { custom_id: deal.id, amount: { currency_code: "USD", value: "95.00" } },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        debugId: "dbg",
+        value: {
+          id: orderId,
+          status: "COMPLETED",
+          purchase_units: [
+            {
+              custom_id: deal.id,
+              payments: {
+                authorizations: [
+                  {
+                    id: "AUTH-EARLIER",
+                    status: "CREATED",
+                    expiration_time: "2026-11-30T09:00:00Z",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+    expect(await onBuyerApproved(deal.id, orderId, deps)).toMatchObject({
+      outcome: "moved",
+      to: "AUTHORIZED",
+    });
+    const [p] = await db.select().from(payments).where(eq(payments.dealId, deal.id));
+    expect(p.authorizationId).toBe("AUTH-EARLIER");
+    expect((await getDeal(deal.id)).authExpiresAt).toEqual(new Date("2026-11-30T09:00:00Z"));
+  });
+});
+
 describe("review", () => {
   it("buyer problem opens a review with the note; admin void closes it", async () => {
     const { deal, deps } = await authorizedDeal();
