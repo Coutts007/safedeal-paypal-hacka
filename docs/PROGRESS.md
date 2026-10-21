@@ -4,9 +4,8 @@ _Last updated: 2026-10-21 (Nairobi)_
 
 ## Current phase
 
-**Phase 1: Payment spike (go/no-go)** — control run 13/13 and seller-A payee run 15/15, both GO.
-**Waiting for Peter** to confirm the capture landed in seller A's sandbox account and to run the
-`/spike` browser test. Then the Phase 1 report. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
+**Phase 1: Payment spike (go/no-go)** — **complete, result GO.** Phase 1 report delivered;
+**waiting for Peter's "Approved, start Phase 2"** and the PR for `phase-1-payment-spike`. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
 
 ## Done
 
@@ -41,14 +40,19 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   before approval finished). Fixed by the APPROVED wait above.
 - **Seller-A payee run (`npm run spike`): 15/15 passed, GO.** Same results as the control run, with
   the order payee set to seller A. Details in `docs/TESTING.md`.
+- Server-side check: order A's capture is 12.00 USD, seller net 11.29 (fee 0.71), payee seller A.
+- **`/spike` browser test passed**: SDK v6 initialised with `clientId`; three approvals authorised
+  (CREATED, +29 days); a buyer cancel was handled. Three test authorisations left open (expire
+  2026-11-19).
 
 ## Blocked / waiting on Peter
 
-- Check seller A's sandbox account for the 12.00 USD capture (order `8A320971KG958492H`).
-- Run the `/spike` browser test (see "Next step").
+- Approve Phase 1 and open the PR for `phase-1-payment-spike` → `main`.
+- Optional: glance at seller A's sandbox account (12.00 USD capture, order `8A320971KG958492H`).
 - Optional: a second sandbox Business account for seller B (seller A can stand in).
 
 ## Next step
 
-Peter: check seller A's sandbox account, then `npm run dev:poll` → http://localhost:3000/spike and
-pay. Paste the outputs. Claude reports GO/NO-GO.
+Peter: push, open the PR, merge it, and reply "Approved, start Phase 2". Claude then starts Phase 2
+(foundation: schema + migrations, `lib/paypal`, `lib/rules`, audit chain, seed) on a new branch
+`phase-2-foundation`, due 24 Oct. Paste the outputs. Claude reports GO/NO-GO.
