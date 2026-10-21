@@ -4,8 +4,8 @@ _Last updated: 2026-10-21 (Nairobi)_
 
 ## Current phase
 
-**Phase 1: Payment spike (go/no-go)** — **complete, result GO.** Phase 1 report delivered;
-**waiting for Peter's "Approved, start Phase 2"** and the PR for `phase-1-payment-spike`. Then GO → Phase 2 (foundation, 22–24 Oct), or NO-GO → fallback decision.
+**Phase 2: Foundation** — built on branch `phase-2-foundation`; all tests pass. Phase 2 report
+delivered; **waiting for Peter's review** of the PR and "Approved, start Phase 3".
 
 ## Done
 
@@ -45,14 +45,31 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   (CREATED, +29 days); a buyer cancel was handled. Three test authorisations left open (expire
   2026-11-19).
 
+### Phase 2
+
+- `lib/db/schema.ts` + `drizzle/0000_init.sql`: all section 6 tables; `0001_audit_append_only.sql`
+  trigger. `lib/db/index.ts` (pool, `connect`).
+- `lib/audit.ts`: one hash chain (`sha256(prev_hash + canonical row)`), advisory lock,
+  `verifyAuditChain`. `lib/hash.ts`: canonical JSON, sha256.
+- `lib/deals/terms.ts` (Zod terms, US$500 cap, `termsHash`), `lib/deals/ids.ts` (public ref,
+  role tokens).
+- `lib/paypal`: `request-id.ts` (`deal-<uuid>-<action>-v<n>`), `result.ts` (ok / retryable /
+  final failure), `orders.ts`, `payments.ts` (engine only), `webhooks.ts` (signature verification),
+  `disputes.ts` (read), `record.ts` (every call into `payment_requests`).
+- `lib/rules/machine.ts`: pure `nextState` for every section 7 row, plus CANCELLED and
+  reconciliation triggers. `lib/rules/engine.ts`: `onTermsConfirmed`, `onBuyerApproved`,
+  `onTrackingSubmitted`, `onCourierDelivered`, `onBuyerConfirmed`, `onBuyerProblem`,
+  `onAdminDecision`, `onCancel`, `onSweep`, `onPaypalWebhook`.
+- `scripts/seed.ts` (`npm run db:seed`): demo deals A (A15, US$95) and B (AF1, US$40).
+- CI runs DB tests with a Postgres service. Results in `docs/TESTING.md`; decisions logged.
+
 ## Blocked / waiting on Peter
 
-- Approve Phase 1 and open the PR for `phase-1-payment-spike` → `main`.
-- Optional: glance at seller A's sandbox account (12.00 USD capture, order `8A320971KG958492H`).
-- Optional: a second sandbox Business account for seller B (seller A can stand in).
+- Review and merge the PR for `phase-2-foundation`.
+- Choose names for the demo parties (seed uses placeholders).
+- Optional: a second sandbox Business account for seller B (B falls back to seller A).
 
 ## Next step
 
-Peter: push, open the PR, merge it, and reply "Approved, start Phase 2". Claude then starts Phase 2
-(foundation: schema + migrations, `lib/paypal`, `lib/rules`, audit chain, seed) on a new branch
-`phase-2-foundation`, due 24 Oct. Paste the outputs. Claude reports GO/NO-GO.
+Phase 3 (Deal Room, payment flow and deployment, 25–28 Oct): API routes, Deal Room page with the
+v6 button wired to `onBuyerApproved`, Render deployment. Starts after "Approved, start Phase 3".

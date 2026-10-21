@@ -62,3 +62,8 @@ export function serverEnv(): ServerEnv {
   cached ??= parseServerEnv(process.env);
   return cached;
 }
+
+/** Test hook: re-read process.env on the next serverEnv() call. */
+export function resetServerEnvCache(): void {
+  cached = undefined;
+}

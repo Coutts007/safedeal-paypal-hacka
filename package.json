@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "test:sandbox": "vitest run --config vitest.sandbox.config.ts",
     "test:watch": "vitest",
     "e2e": "playwright test",
     "format": "prettier --write .",
@@ -20,7 +22,8 @@
     "db:studio": "drizzle-kit studio",
     "check:env": "tsx scripts/check-env.ts",
     "spike": "tsx scripts/spike.ts",
-    "dev:poll": "WATCHPACK_POLLING=true next dev"
+    "dev:poll": "WATCHPACK_POLLING=true next dev",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

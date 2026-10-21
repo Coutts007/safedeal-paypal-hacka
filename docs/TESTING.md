@@ -5,14 +5,18 @@
 | Kind                           | Command                                                    | Needs                              |
 | ------------------------------ | ---------------------------------------------------------- | ---------------------------------- |
 | Unit                           | `npm test`                                                 | nothing                            |
+| Database                       | `npm run test:db`                                          | `npm run db:up` (Docker Postgres)  |
 | Type check                     | `npm run typecheck`                                        | nothing                            |
 | Lint                           | `npm run lint`                                             | nothing                            |
 | End to end                     | `npx playwright install chromium` once, then `npm run e2e` | dev server (started automatically) |
 | Env / PayPal credentials check | `npx tsx scripts/check-env.ts`                             | `.env` with sandbox keys           |
 | Payment spike (Phase 1)        | `npm run spike`                                            | `.env`, sandbox buyer login        |
-| Sandbox integration            | added in Phase 2                                           | `.env`, network                    |
+| Sandbox integration            | `npm run test:sandbox`                                     | `.env`, network                    |
+| Demo data                      | `npm run db:seed` (add `-- --agreed`)                      | Postgres, `SANDBOX_SELLER_A_EMAIL` |
 
-CI (`.github/workflows/ci.yml`) runs lint, type check and unit tests on every push.
+CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests and database tests (with a
+Postgres 16 service) on every push. Database tests create and migrate their own database
+(`TEST_DATABASE_URL`, default `safedeal_test` on port 5433), so they never touch dev data.
 
 ## Latest results
 
@@ -63,3 +67,22 @@ CI (`.github/workflows/ci.yml`) runs lint, type check and unit tests on every pu
   +29 days. One cancel in between was reported as "Buyer cancelled" and did not break later
   payments. Those three authorisations were left open; they expire on 2026-11-19.
 - Unit tests 12/12, `npm run typecheck` and `npm run lint` clean (2026-10-21).
+
+### Phase 2 (2026-10-21)
+
+- `npm test`: 111 unit tests passed, including one per section 7 transition
+  (`lib/rules/machine.test.ts`) and the rule 1 guard (`lib/rules/rule1.test.ts`; checked that it
+  fails on a planted import of `lib/paypal/payments`).
+- `npm run test:db`: 28 tests passed against Docker Postgres 16: audit chain (links, refuses
+  UPDATE/DELETE, detects a changed and a deleted row with the trigger bypassed, 10 concurrent
+  appends stay one chain); engine with a fake PayPal (terms lock, authorise, wrong order id
+  refused, amount mismatch refused, FUNDING_FAILED, **two simultaneous buyer confirmations capture
+  once**, retryable error keeps the same key, refusal → CAPTURE_FAILED and admin retry with `-v2`,
+  ALREADY_CAPTURED reconciled, **two simultaneous sweeps void once**, happy path to capture after
+  the inspection window, no capture on time alone, lost capture/void replies reconciled, webhook
+  re-reads, dispute); `payment_requests` recorder.
+- `npm run test:sandbox`: 2 passed, 1 skipped (opt-in void). Created an AUTHORIZE order with
+  seller A as payee (custom_id, amount and payee echoed), same request id returned the same order,
+  unknown authorisation reported as non-retryable.
+- `npm run db:seed -- --agreed`: two demo deals created and AGREED (95.00 and 40.00 USD).
+- Type check, lint, format: clean. `npm run build`: succeeded.
