@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccessToken, paypalFetch, resetTokenCache } from "./client";
+import {
+  getAccessToken,
+  paypalFetch,
+  resetTokenCache,
+  setPaypalRecorder,
+  type PaypalCallRecord,
+} from "./client";
 
 const fetchMock = vi.fn();
 
@@ -13,6 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setPaypalRecorder(undefined);
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
@@ -131,5 +138,69 @@ describe("network retries", () => {
     const res = await paypalFetch("/v2/x", { method: "POST", requestId: "k" });
     expect(res.status).toBe(422);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("call recording", () => {
+  it("records a call made with `record`, including status and debug id", async () => {
+    const calls: PaypalCallRecord[] = [];
+    setPaypalRecorder(async (c) => void calls.push(c));
+    fetchMock.mockResolvedValueOnce(tokenResponse()).mockResolvedValueOnce(
+      new Response(JSON.stringify({ name: "UNPROCESSABLE_ENTITY" }), {
+        status: 422,
+        headers: { "paypal-debug-id": "dbg" },
+      }),
+    );
+    await paypalFetch("/v2/payments/authorizations/A1/capture", {
+      method: "POST",
+      requestId: "deal-x-capture-v1",
+      record: { dealId: "d1", action: "capture" },
+    });
+    expect(calls).toEqual([
+      {
+        dealId: "d1",
+        action: "capture",
+        method: "POST",
+        path: "/v2/payments/authorizations/A1/capture",
+        requestId: "deal-x-capture-v1",
+        status: 422,
+        json: { name: "UNPROCESSABLE_ENTITY" },
+        debugId: "dbg",
+      },
+    ]);
+  });
+
+  it("records a network failure with a null status and still throws", async () => {
+    vi.useFakeTimers();
+    const calls: PaypalCallRecord[] = [];
+    setPaypalRecorder(async (c) => void calls.push(c));
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockRejectedValue(new TypeError("fetch failed", { cause: { code: "ECONNRESET" } }));
+    const pending = paypalFetch("/v2/x", {
+      method: "POST",
+      requestId: "k",
+      record: { dealId: null, action: "void" },
+    }).catch((e: Error) => e);
+    await vi.runAllTimersAsync();
+    expect(String(await pending)).toContain("ECONNRESET");
+    expect(calls[0]).toMatchObject({ status: null, requestId: "k", action: "void" });
+    vi.useRealTimers();
+  });
+
+  it("does not record calls without `record`, and a failing recorder does not break the call", async () => {
+    const recorder = vi.fn().mockRejectedValue(new Error("db down"));
+    setPaypalRecorder(recorder);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(new Response("{}"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "O1" })));
+    await paypalFetch("/v2/a");
+    expect(recorder).not.toHaveBeenCalled();
+    const res = await paypalFetch("/v2/b", { record: { dealId: null, action: "get" } });
+    expect(res.json).toEqual({ id: "O1" });
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
   });
 });
