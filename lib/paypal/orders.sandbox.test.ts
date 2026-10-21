@@ -39,6 +39,19 @@ describe("PayPal sandbox", () => {
     expect(read.ok && read.value.status).toBe(first.value.status);
   });
 
+  it("accepts seller B as a payee too", async () => {
+    const sellerB = serverEnv().SANDBOX_SELLER_B_EMAIL;
+    expect(sellerB).not.toBe("");
+    const id = randomUUID();
+    const res = await createOrder(
+      { ...src(), dealId: id, payeeEmail: sellerB },
+      paypalRequestId(id, "create", 1),
+    );
+    if (!res.ok) throw new Error(`create failed: ${res.issue} (debug_id ${res.debugId})`);
+    const payee = res.value.purchase_units?.[0]?.payee?.email_address;
+    expect(payee?.toLowerCase()).toBe(sellerB.toLowerCase());
+  });
+
   it("reports an unknown authorisation as a non-retryable failure", async () => {
     const res = await getAuth("0NOTREAL00000000X", null);
     expect(res).toMatchObject({ ok: false, retryable: false });
