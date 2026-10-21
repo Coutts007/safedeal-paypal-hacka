@@ -73,7 +73,7 @@ CREATE TABLE "deals" (
 	"authorized_at" timestamp with time zone,
 	"auth_expires_at" timestamp with time zone,
 	"payment_attempt" integer DEFAULT 1 NOT NULL,
-	"capture_attempt" integer DEFAULT 1 NOT NULL,
+	"settle_attempt" integer DEFAULT 1 NOT NULL,
 	"version" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

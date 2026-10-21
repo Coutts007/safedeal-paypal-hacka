@@ -33,6 +33,6 @@ export function dbRecorder(db: Db) {
   };
 }
 
-export function useDbRecorder(db: Db): void {
+export function installDbRecorder(db: Db): void {
   setPaypalRecorder(dbRecorder(db));
 }

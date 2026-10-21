@@ -1,5 +1,5 @@
 {
-  "id": "defcb94d-e4c2-4c2b-bf7a-fedb3f1ea94b",
+  "id": "187b7510-7065-44d7-8458-84329517ef0c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -563,8 +563,8 @@
           "notNull": true,
           "default": 1
         },
-        "capture_attempt": {
-          "name": "capture_attempt",
+        "settle_attempt": {
+          "name": "settle_attempt",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

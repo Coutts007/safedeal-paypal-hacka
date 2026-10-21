@@ -1,6 +1,6 @@
 {
-  "id": "54ac1aff-79f0-4ea5-9889-ac051e2145b8",
-  "prevId": "defcb94d-e4c2-4c2b-bf7a-fedb3f1ea94b",
+  "id": "417a8296-b473-4fda-a5cf-0a74bbbfe2be",
+  "prevId": "187b7510-7065-44d7-8458-84329517ef0c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -563,8 +563,8 @@
           "notNull": true,
           "default": 1
         },
-        "capture_attempt": {
-          "name": "capture_attempt",
+        "settle_attempt": {
+          "name": "settle_attempt",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

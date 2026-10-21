@@ -63,7 +63,8 @@ export const deals = pgTable("deals", {
   authExpiresAt: tstz("auth_expires_at"),
   // Version numbers in PayPal-Request-Ids; raised only when a new attempt is intended.
   paymentAttempt: integer("payment_attempt").notNull().default(1),
-  captureAttempt: integer("capture_attempt").notNull().default(1),
+  // Raised after a final capture or void failure, so a deliberate retry uses a new key.
+  settleAttempt: integer("settle_attempt").notNull().default(1),
   version: integer("version").notNull().default(0),
   createdAt: createdAt(),
   updatedAt: tstz("updated_at").notNull().defaultNow(),

@@ -1,0 +1,612 @@
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { appendAudit } from "@/lib/audit";
+import { getDb, type Db, type Tx } from "@/lib/db";
+import {
+  confirmations,
+  deals,
+  dealTerms,
+  evidence,
+  payments,
+  reviews,
+  type Deal,
+  type DealState,
+} from "@/lib/db/schema";
+import { dealTermsSchema } from "@/lib/deals/terms";
+import { serverEnv } from "@/lib/env";
+import * as disputesApi from "@/lib/paypal/disputes";
+import * as ordersApi from "@/lib/paypal/orders";
+// RULE 1: this is the only file allowed to import the module that captures, voids and refunds.
+import * as paymentsApi from "@/lib/paypal/payments";
+import { installDbRecorder } from "@/lib/paypal/record";
+import { paypalRequestId } from "@/lib/paypal/request-id";
+import type { PaypalResult } from "@/lib/paypal/result";
+import {
+  defaultDeadlines,
+  HELD_STATES,
+  nextState,
+  type DealSnapshot,
+  type Decision,
+  type PaypalStep,
+  type Trigger,
+} from "./machine";
+
+// The rule engine. Every trigger runs the same way: open a transaction, lock the deal row, decide
+// with the pure `nextState`, call PayPal with the deal's fixed request id if needed, update the
+// deal, append to the audit log, commit. Two triggers at the same moment queue on the row lock,
+// so the second one sees the first one's result and cannot capture again.
+//
+// The lock is FOR NO KEY UPDATE: it blocks other engine runs (which take the same lock) but not
+// inserts into tables that reference the deal, such as the PayPal call log written on another
+// connection while the lock is held.
+
+export type PaypalPort = {
+  getOrder: typeof ordersApi.getOrder;
+  authorizeOrder: typeof ordersApi.authorizeOrder;
+  capture: typeof paymentsApi.capture;
+  voidAuth: typeof paymentsApi.voidAuth;
+  getAuth: typeof paymentsApi.getAuth;
+  getDispute: typeof disputesApi.getDispute;
+};
+
+export type EngineDeps = { db: Db; paypal: PaypalPort; now: () => Date; timeScale: number };
+
+let defaults: EngineDeps | undefined;
+
+export function defaultDeps(): EngineDeps {
+  if (!defaults) {
+    const db = getDb();
+    installDbRecorder(db);
+    defaults = {
+      db,
+      paypal: {
+        getOrder: ordersApi.getOrder,
+        authorizeOrder: ordersApi.authorizeOrder,
+        capture: paymentsApi.capture,
+        voidAuth: paymentsApi.voidAuth,
+        getAuth: paymentsApi.getAuth,
+        getDispute: disputesApi.getDispute,
+      },
+      now: () => new Date(),
+      timeScale: serverEnv().DEMO_TIME_SCALE,
+    };
+  }
+  return defaults;
+}
+
+export type EngineResult =
+  | { outcome: "moved"; from: DealState; to: DealState; reason: string }
+  /** Allowed; the state did not change. */
+  | { outcome: "unchanged"; state: DealState; reason: string }
+  | { outcome: "rejected"; state: DealState; reason: string }
+  /** PayPal could not complete the call yet; repeating it later uses the same request id. */
+  | { outcome: "pending"; state: DealState; reason: string }
+  /** PayPal refused; the deal moved to the failure state (or stayed where it was). */
+  | { outcome: "failed"; from: DealState; to: DealState; reason: string; issue: string }
+  /** Deal not found, or locked by another run (sweep only). */
+  | { outcome: "skipped"; reason: string };
+
+type DealPatch = Partial<typeof deals.$inferInsert>;
+type Ctx = { tx: Tx; deal: Deal; deps: EngineDeps; now: Date };
+
+type RunOptions = {
+  actor: string;
+  skipLocked?: boolean;
+  /** Extra audit details (never chat text or secrets). */
+  details?: Record<string, unknown>;
+  /** Text for the review opened if the deal enters IN_REVIEW. */
+  reviewNote?: string;
+  /**
+   * Writes that belong to an accepted trigger (e.g. store the tracking number). Runs when the
+   * intended outcome happens (a move to `decision.to`, or a stay), never after a PayPal failure.
+   */
+  effects?: (ctx: Ctx, to: DealState) => Promise<DealPatch | void>;
+};
+
+/** Build the trigger inside the locked transaction; a string means reject with that reason. */
+type TriggerSource = Trigger | ((ctx: Ctx) => Promise<Trigger | string>);
+
+async function snapshot(tx: Tx, deal: Deal): Promise<DealSnapshot> {
+  const [terms] = await tx
+    .select({ id: dealTerms.id, hash: dealTerms.termsHash })
+    .from(dealTerms)
+    .where(eq(dealTerms.dealId, deal.id))
+    .orderBy(desc(dealTerms.version))
+    .limit(1);
+  const confirmed = terms
+    ? await tx
+        .select({ role: confirmations.role })
+        .from(confirmations)
+        .where(eq(confirmations.termsId, terms.id))
+    : [];
+  const hashFor = (role: "buyer" | "seller") =>
+    confirmed.some((c) => c.role === role) ? (terms?.hash ?? null) : null;
+  const [tracking] = await tx
+    .select({ id: evidence.id })
+    .from(evidence)
+    .where(and(eq(evidence.dealId, deal.id), eq(evidence.type, "tracking")))
+    .limit(1);
+  return {
+    state: deal.state,
+    shipBy: deal.shipBy,
+    deliverBy: deal.deliverBy,
+    deliveredAt: deal.deliveredAt,
+    inspectionHours: deal.inspectionHours,
+    authorizedAt: deal.authorizedAt,
+    authExpiresAt: deal.authExpiresAt,
+    hasTracking: Boolean(tracking),
+    currentTermsHash: terms?.hash ?? null,
+    confirmedHashes: { buyer: hashFor("buyer"), seller: hashFor("seller") },
+  };
+}
+
+async function currentPayment(tx: Tx, deal: Deal) {
+  const [p] = await tx
+    .select()
+    .from(payments)
+    .where(and(eq(payments.dealId, deal.id), eq(payments.attempt, deal.paymentAttempt)))
+    .limit(1);
+  return p;
+}
+
+type StepResult =
+  | { ok: true; patch: DealPatch; info: Record<string, unknown> }
+  | { ok: false; retryable: boolean; issue: string; info: Record<string, unknown> };
+
+function failure<T>(res: PaypalResult<T> & { ok: false }): StepResult {
+  return {
+    ok: false,
+    retryable: res.retryable,
+    issue: res.issue,
+    info: { httpStatus: res.status, debugId: res.debugId, issue: res.issue },
+  };
+}
+
+async function runPaypalStep(ctx: Ctx, step: PaypalStep): Promise<StepResult> {
+  const { tx, deal, deps, now } = ctx;
+  const payment = await currentPayment(tx, deal);
+  if (!payment) return { ok: false, retryable: false, issue: "NO_PAYMENT_RECORD", info: {} };
+
+  if (step === "authorize") {
+    const requestId = paypalRequestId(deal.id, "authorize", deal.paymentAttempt);
+    const res = await deps.paypal.authorizeOrder(payment.paypalOrderId, requestId, deal.id);
+    if (!res.ok) {
+      await tx
+        .update(payments)
+        .set({ status: `AUTHORIZE_FAILED:${res.issue}`.slice(0, 120), updatedAt: now })
+        .where(eq(payments.id, payment.id));
+      return failure(res);
+    }
+    await tx
+      .update(payments)
+      .set({ authorizationId: res.value.id, status: res.value.status, updatedAt: now })
+      .where(eq(payments.id, payment.id));
+    const defaultsAt = defaultDeadlines(now, { timeScale: deps.timeScale });
+    return {
+      ok: true,
+      patch: {
+        authorizedAt: now,
+        authExpiresAt: res.value.expiresAt,
+        shipBy: deal.shipBy ?? defaultsAt.shipBy,
+        deliverBy: deal.deliverBy ?? defaultsAt.deliverBy,
+      },
+      info: { requestId, authorizationId: res.value.id, debugId: res.debugId },
+    };
+  }
+
+  const authId = payment.authorizationId;
+  if (!authId) return { ok: false, retryable: false, issue: "NO_AUTHORIZATION", info: {} };
+  const requestId = paypalRequestId(deal.id, step, deal.settleAttempt);
+  const res =
+    step === "capture"
+      ? await deps.paypal.capture(authId, requestId, deal.id)
+      : await deps.paypal.voidAuth(authId, requestId, deal.id);
+  if (res.ok) {
+    const captureId = step === "capture" ? (res.value as paymentsApi.Capture).id : undefined;
+    await tx
+      .update(payments)
+      .set({
+        status: step === "capture" ? "CAPTURED" : "VOIDED",
+        ...(captureId && { captureId }),
+        updatedAt: now,
+      })
+      .where(eq(payments.id, payment.id));
+    return { ok: true, patch: {}, info: { requestId, captureId, debugId: res.debugId } };
+  }
+  if (res.retryable) return failure(res);
+
+  // A final refusal may mean the work was already done (e.g. AUTHORIZATION_ALREADY_CAPTURED after
+  // an earlier attempt whose reply was lost). Re-read the authorisation before calling it a failure.
+  const goal = step === "capture" ? "CAPTURED" : "VOIDED";
+  const auth = await deps.paypal.getAuth(authId, deal.id);
+  if (auth.ok && auth.value.status === goal) {
+    await tx
+      .update(payments)
+      .set({ status: goal, updatedAt: now })
+      .where(eq(payments.id, payment.id));
+    return { ok: true, patch: {}, info: { requestId, reconciled: true, issue: res.issue } };
+  }
+  return failure(res);
+}
+
+async function openReview(tx: Tx, dealId: string, reason: string, note?: string) {
+  const [open] = await tx
+    .select({ id: reviews.id })
+    .from(reviews)
+    .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)))
+    .limit(1);
+  if (!open) await tx.insert(reviews).values({ dealId, reason, note });
+}
+
+async function transition(
+  deps: EngineDeps,
+  dealId: string,
+  source: TriggerSource,
+  opts: RunOptions,
+): Promise<EngineResult> {
+  return deps.db.transaction(async (tx) => {
+    const lockQuery = tx.select().from(deals).where(eq(deals.id, dealId));
+    const [deal] = await (opts.skipLocked
+      ? lockQuery.for("no key update", { skipLocked: true })
+      : lockQuery.for("no key update"));
+    if (!deal) return { outcome: "skipped", reason: "deal not found or locked" } as const;
+
+    const now = deps.now();
+    const ctx: Ctx = { tx, deal, deps, now };
+    const trigger = typeof source === "function" ? await source(ctx) : source;
+    const from = deal.state;
+    const audit = (action: string, details: Record<string, unknown>) =>
+      appendAudit(
+        tx,
+        { dealId, actor: opts.actor, action, details: { ...opts.details, ...details } },
+        now,
+      );
+
+    if (typeof trigger === "string") {
+      await audit("trigger.rejected", { state: from, reason: trigger });
+      return { outcome: "rejected", state: from, reason: trigger } as const;
+    }
+
+    const decision: Decision = nextState(await snapshot(tx, deal), trigger, now, {
+      timeScale: deps.timeScale,
+    });
+    const base = { trigger: trigger.type, state: from, reason: decision.reason };
+
+    if (decision.kind === "reject") {
+      await audit("trigger.rejected", base);
+      return { outcome: "rejected", state: from, reason: decision.reason } as const;
+    }
+    if (decision.kind === "stay") {
+      const patch = (await opts.effects?.(ctx, from)) ?? undefined;
+      if (patch && Object.keys(patch).length) {
+        await tx
+          .update(deals)
+          .set({ ...patch, updatedAt: now })
+          .where(eq(deals.id, dealId));
+      }
+      if (trigger.type !== "SWEEP") await audit("trigger.accepted", base);
+      return { outcome: "unchanged", state: from, reason: decision.reason } as const;
+    }
+
+    let to = decision.to;
+    let patch: DealPatch = {};
+    let paypalInfo: Record<string, unknown> | undefined;
+    let failedIssue: string | undefined;
+
+    if (decision.paypal) {
+      const step = await runPaypalStep(ctx, decision.paypal);
+      paypalInfo = { step: decision.paypal, ...step.info };
+      if (!step.ok && step.retryable) {
+        await audit("paypal.pending", { ...base, paypal: paypalInfo });
+        return {
+          outcome: "pending",
+          state: from,
+          reason: `PayPal did not complete ${decision.paypal} (${step.issue}); it will be retried`,
+        } as const;
+      }
+      if (!step.ok) {
+        failedIssue = step.issue;
+        to = decision.onFailure ?? from;
+        // A capture or void that PayPal refused is never retried blindly with the same key.
+        if (decision.paypal !== "authorize") patch.settleAttempt = deal.settleAttempt + 1;
+      } else {
+        patch = step.patch;
+      }
+    }
+
+    if (!failedIssue) Object.assign(patch, (await opts.effects?.(ctx, to)) ?? {});
+    // Deals that need a person (review, or a capture PayPal refused) get an open review.
+    if ((to === "IN_REVIEW" || to === "CAPTURE_FAILED") && from !== to) {
+      const why = failedIssue
+        ? `PayPal refused ${decision.paypal}: ${failedIssue}`
+        : decision.reason;
+      await openReview(tx, dealId, why, opts.reviewNote);
+    }
+    await tx
+      .update(deals)
+      .set({ ...patch, state: to, version: deal.version + 1, updatedAt: now })
+      .where(eq(deals.id, dealId));
+    await audit(failedIssue ? "paypal.failed" : "state.changed", {
+      ...base,
+      from,
+      to,
+      ...(paypalInfo && { paypal: paypalInfo }),
+    });
+
+    if (failedIssue) {
+      return { outcome: "failed", from, to, reason: decision.reason, issue: failedIssue } as const;
+    }
+    return { outcome: "moved", from, to, reason: decision.reason } as const;
+  });
+}
+
+// ---- Triggers ---------------------------------------------------------------------------------
+
+/** A party confirms the terms they were shown (by hash); the second matching confirmation agrees the deal. */
+export function onTermsConfirmed(
+  dealId: string,
+  input: { role: "buyer" | "seller"; termsHash: string },
+  deps = defaultDeps(),
+) {
+  return transition(
+    deps,
+    dealId,
+    async ({ tx }) => {
+      const [latest] = await tx
+        .select()
+        .from(dealTerms)
+        .where(eq(dealTerms.dealId, dealId))
+        .orderBy(desc(dealTerms.version))
+        .limit(1);
+      if (!latest) return "the deal has no terms yet";
+      if (latest.termsHash !== input.termsHash) return "the terms changed; review them again";
+      await tx
+        .insert(confirmations)
+        .values({ dealId, termsId: latest.id, role: input.role })
+        .onConflictDoNothing();
+      return { type: "CONFIRM" };
+    },
+    {
+      actor: input.role,
+      details: { termsHash: input.termsHash },
+      effects: async ({ tx }, to) => {
+        if (to !== "AGREED") return;
+        // Lock the terms: amount, currency, payee and deadlines are copied from the confirmed
+        // version, and only these copies are ever sent to PayPal (rule 2).
+        const [latest] = await tx
+          .select()
+          .from(dealTerms)
+          .where(eq(dealTerms.dealId, dealId))
+          .orderBy(desc(dealTerms.version))
+          .limit(1);
+        const terms = dealTermsSchema.parse(latest.termsJson);
+        return {
+          confirmedTermsId: latest.id,
+          amount: terms.price.amount,
+          currency: terms.price.currency,
+          payeeEmail: terms.payeeEmail,
+          shipBy: terms.shipBy ? new Date(terms.shipBy) : null,
+          deliverBy: terms.deliverBy ? new Date(terms.deliverBy) : null,
+          inspectionHours: terms.inspectionHours,
+        };
+      },
+    },
+  );
+}
+
+/**
+ * The buyer approved the PayPal order in the browser. The order id is checked against the deal's
+ * own payment record and re-read from PayPal; the browser's word alone is never enough.
+ */
+export function onBuyerApproved(dealId: string, orderId: string, deps = defaultDeps()) {
+  return transition(
+    deps,
+    dealId,
+    async ({ tx, deal }) => {
+      const payment = await currentPayment(tx, deal);
+      if (!payment || payment.paypalOrderId !== orderId) {
+        return "this PayPal order does not belong to the deal's current payment";
+      }
+      const order = await deps.paypal.getOrder(orderId, dealId);
+      const unit = order.ok ? order.value.purchase_units?.[0] : undefined;
+      const approved =
+        order.ok &&
+        order.value.status === "APPROVED" &&
+        unit?.custom_id === dealId &&
+        unit.amount?.value === deal.amount &&
+        unit.amount?.currency_code === deal.currency;
+      return { type: "BUYER_APPROVED", orderApproved: approved };
+    },
+    { actor: "buyer", details: { orderId } },
+  );
+}
+
+export function onTrackingSubmitted(
+  dealId: string,
+  input: { carrier: string; trackingNumber: string },
+  deps = defaultDeps(),
+) {
+  return transition(
+    deps,
+    dealId,
+    { type: "TRACKING_SUBMITTED" },
+    {
+      actor: "seller",
+      details: { carrier: input.carrier },
+      effects: async ({ tx }) => {
+        await tx.insert(evidence).values({
+          dealId,
+          type: "tracking",
+          carrier: input.carrier,
+          trackingNumber: input.trackingNumber,
+        });
+      },
+    },
+  );
+}
+
+/** A courier "delivered" event; `verified` must come from the webhook signature check. */
+export function onCourierDelivered(
+  dealId: string,
+  input: { verified: boolean; deliveredAt: Date; eventId: string },
+  deps = defaultDeps(),
+) {
+  return transition(
+    deps,
+    dealId,
+    { type: "COURIER_DELIVERED", verified: input.verified },
+    {
+      actor: "courier",
+      details: { eventId: input.eventId },
+      effects: async (_ctx, to) =>
+        to === "DELIVERED" ? { deliveredAt: input.deliveredAt } : undefined,
+    },
+  );
+}
+
+export function onBuyerConfirmed(dealId: string, deps = defaultDeps()) {
+  return transition(deps, dealId, { type: "BUYER_CONFIRMED" }, { actor: "buyer" });
+}
+
+export function onBuyerProblem(dealId: string, note: string, deps = defaultDeps()) {
+  return transition(
+    deps,
+    dealId,
+    { type: "BUYER_PROBLEM" },
+    {
+      actor: "buyer",
+      reviewNote: note.slice(0, 2000),
+    },
+  );
+}
+
+export function onAdminDecision(
+  dealId: string,
+  input: { decision: "capture" | "void"; reason: string; admin: string },
+  deps = defaultDeps(),
+) {
+  return transition(
+    deps,
+    dealId,
+    { type: "ADMIN_DECISION", decision: input.decision, reason: input.reason },
+    {
+      actor: "admin",
+      details: { decision: input.decision, adminReason: input.reason, admin: input.admin },
+      effects: async ({ tx, now }) => {
+        await tx
+          .update(reviews)
+          .set({
+            decision: input.decision,
+            decidedBy: input.admin,
+            note: input.reason,
+            decidedAt: now,
+          })
+          .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)));
+      },
+    },
+  );
+}
+
+export function onCancel(dealId: string, role: "buyer" | "seller", deps = defaultDeps()) {
+  return transition(deps, dealId, { type: "CANCEL" }, { actor: role });
+}
+
+/**
+ * Deadlines and reconciliation for every deal whose money is held. Safe to run twice at once:
+ * a deal locked by the other run is skipped, and every PayPal call has a fixed request id.
+ */
+export async function onSweep(deps = defaultDeps()) {
+  const held = await deps.db
+    .select({ id: deals.id })
+    .from(deals)
+    .where(inArray(deals.state, [...HELD_STATES]));
+  const results: { dealId: string; result: EngineResult }[] = [];
+  for (const { id } of held) {
+    const result = await transition(
+      deps,
+      id,
+      async ({ tx, deal }) => {
+        // Reconcile first: if PayPal already voided or expired the hold, deadlines no longer apply.
+        const payment = await currentPayment(tx, deal);
+        if (payment?.authorizationId) {
+          const auth = await deps.paypal.getAuth(payment.authorizationId, id);
+          if (auth.ok && (auth.value.status === "VOIDED" || auth.value.status === "EXPIRED")) {
+            return { type: "AUTH_ENDED" };
+          }
+        }
+        return { type: "SWEEP" };
+      },
+      { actor: "sweep", skipLocked: true },
+    );
+    results.push({ dealId: id, result });
+  }
+  return results;
+}
+
+type WebhookEvent = { id: string; event_type: string; resource?: unknown };
+
+async function dealIdFor(db: Db, column: "authorizationId" | "captureId", value: string) {
+  const [p] = await db
+    .select({ dealId: payments.dealId })
+    .from(payments)
+    .where(eq(payments[column], value))
+    .limit(1);
+  return p?.dealId;
+}
+
+/**
+ * A PayPal webhook that the route has already verified and stored. The resource is re-read from
+ * PayPal before any state change, because events arrive late, twice or out of order.
+ */
+export async function onPaypalWebhook(
+  event: WebhookEvent,
+  deps = defaultDeps(),
+): Promise<EngineResult | { outcome: "ignored"; reason: string }> {
+  const resource = (event.resource ?? {}) as { id?: string; dispute_id?: string };
+  const actorOpts = {
+    actor: "paypal",
+    details: { webhookEventId: event.id, eventType: event.event_type },
+  };
+
+  if (event.event_type === "PAYMENT.AUTHORIZATION.VOIDED" && resource.id) {
+    const authId = resource.id;
+    const dealId = await dealIdFor(deps.db, "authorizationId", authId);
+    if (!dealId) return { outcome: "ignored", reason: "no deal for this authorization" };
+    return transition(
+      deps,
+      dealId,
+      async () => {
+        const auth = await deps.paypal.getAuth(authId, dealId);
+        if (!auth.ok) return `could not re-read the authorization (${auth.issue})`;
+        if (auth.value.status !== "VOIDED" && auth.value.status !== "EXPIRED") {
+          return `PayPal reports the authorization as ${auth.value.status}`;
+        }
+        return { type: "AUTH_ENDED" };
+      },
+      actorOpts,
+    );
+  }
+
+  if (
+    (event.event_type === "CUSTOMER.DISPUTE.CREATED" ||
+      event.event_type === "CUSTOMER.DISPUTE.RESOLVED") &&
+    (resource.dispute_id ?? resource.id)
+  ) {
+    const disputeId = (resource.dispute_id ?? resource.id) as string;
+    const dispute = await deps.paypal.getDispute(disputeId);
+    if (!dispute.ok)
+      return { outcome: "ignored", reason: `could not re-read the dispute (${dispute.issue})` };
+    const captureId = dispute.value.captureIds[0];
+    const dealId = captureId && (await dealIdFor(deps.db, "captureId", captureId));
+    if (!dealId) return { outcome: "ignored", reason: "no deal for this dispute" };
+    const trigger: Trigger =
+      event.event_type === "CUSTOMER.DISPUTE.CREATED"
+        ? { type: "DISPUTE_CREATED", verified: true }
+        : { type: "DISPUTE_RESOLVED", verified: dispute.value.status === "RESOLVED" };
+    return transition(deps, dealId, trigger, {
+      ...actorOpts,
+      details: { ...actorOpts.details, disputeId, disputeStatus: dispute.value.status },
+    });
+  }
+
+  return { outcome: "ignored", reason: `no state change for ${event.event_type}` };
+}
