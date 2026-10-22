@@ -13,7 +13,7 @@ export default function Home() {
           proven. If the seller never ships, the hold is released automatically.
         </p>
         <p className="text-sm text-neutral-500">
-          PayPal sandbox demo. Pasting a chat to fill this form arrives in the next update.
+          PayPal sandbox demo. Paste your chat and the AI fills in the deal; you both confirm it.
         </p>
       </header>
       <CreateDeal kesPerUsd={serverEnv().KES_PER_USD} />
