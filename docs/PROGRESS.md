@@ -93,9 +93,8 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 
 ## Blocked / waiting on Peter
 
-- Confirm the Render plans (paid web, Postgres and cron; see DECISIONS) before creating them.
-- Gate 2 steps in the Phase 3 report: Render Blueprint, environment values, PayPal webhook, then
-  one deal to CAPTURED and one to VOIDED on the Render URL.
+- Gate 2 on Render (free web and database; upgrade both by 9 November): Blueprint from `main`,
+  environment values, PayPal webhook, then one deal to CAPTURED and one to VOIDED.
 
 ## Next step
 
