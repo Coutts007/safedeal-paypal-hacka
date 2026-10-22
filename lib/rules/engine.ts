@@ -431,6 +431,14 @@ async function transition(
     if (decision.paypal) {
       const step = await runPaypalStep(ctx, decision.paypal);
       paypalInfo = { step: decision.paypal, ...step.info };
+      if (!step.ok) {
+        // PayPal's reason, in the server log too (Render logs); never amounts, emails or tokens.
+        console.warn(
+          `PayPal ${decision.paypal} not completed for deal ${deal.publicRef}: ${step.issue}` +
+            ` (http ${String(step.info.httpStatus ?? "-")}, debug_id ${String(step.info.debugId ?? "-")}` +
+            `${step.retryable ? ", will retry" : ""})`,
+        );
+      }
       if (!step.ok && step.retryable) {
         await audit("paypal.pending", { ...base, paypal: paypalInfo });
         return {
@@ -554,6 +562,9 @@ export async function preparePayment(
     );
     if (!res.ok) {
       await audit("paypal.create_failed", { attempt, issue: res.issue, debugId: res.debugId });
+      console.warn(
+        `PayPal create order failed for deal ${deal.publicRef}: ${res.issue} (debug_id ${res.debugId ?? "-"})`,
+      );
       return { ok: false, reason: `PayPal could not create the order (${res.issue})` };
     }
     await tx.insert(payments).values({
