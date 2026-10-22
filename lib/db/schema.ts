@@ -38,7 +38,23 @@ export const dealState = pgEnum("deal_state", dealStates);
 export const partyRole = pgEnum("party_role", ["buyer", "seller"]);
 export const termsProposer = pgEnum("terms_proposer", ["ai", "user"]);
 export const evidenceType = pgEnum("evidence_type", ["tracking", "photo", "note"]);
-export const reviewDecision = pgEnum("review_decision", ["capture", "void"]);
+// "cleared": the deal left review without an admin decision (e.g. a late buyer confirmation).
+export const reviewDecision = pgEnum("review_decision", ["capture", "void", "cleared"]);
+/**
+ * Why a deal is in review. Only the deadline kinds (deliver_by, day_26) can be cleared by a late
+ * buyer confirmation or verified delivery (section 7.1); a complaint or a PayPal problem needs an admin.
+ */
+export const reviewKinds = ["deliver_by", "day_26", "buyer_problem", "paypal", "other"] as const;
+export type ReviewKind = (typeof reviewKinds)[number];
+export const reviewKind = pgEnum("review_kind", reviewKinds);
+/** How delivery was proven (section 7.1): courier event, handover code, or the buyer's own word. */
+export const deliveryProof = pgEnum("delivery_proof", ["courier", "handover_code", "buyer"]);
+export const extensionStatus = pgEnum("extension_status", [
+  "proposed",
+  "accepted",
+  "rejected",
+  "expired",
+]);
 
 const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const createdAt = () => tstz("created_at").notNull().defaultNow();
@@ -62,8 +78,13 @@ export const deals = pgTable("deals", {
   deliverBy: tstz("deliver_by"),
   inspectionHours: integer("inspection_hours").notNull().default(48),
   deliveredAt: tstz("delivered_at"),
+  deliveryProof: deliveryProof("delivery_proof"),
   authorizedAt: tstz("authorized_at"),
   authExpiresAt: tstz("auth_expires_at"),
+  // Handover code (Phase 5): only a hash is stored; 5 wrong entries lock it and alert the admin.
+  handoverCodeHash: text("handover_code_hash"),
+  handoverAttempts: integer("handover_attempts").notNull().default(0),
+  handoverLocked: boolean("handover_locked").notNull().default(false),
   // Version numbers in PayPal-Request-Ids; raised only when a new attempt is intended.
   paymentAttempt: integer("payment_attempt").notNull().default(1),
   // Raised after a final capture or void failure, so a deliberate retry uses a new key.
@@ -191,11 +212,28 @@ export const webhookEvents = pgTable("webhook_events", {
   processedAt: tstz("processed_at"),
 });
 
+/** Extend delivery date (section 7.1, Phase 5): one party proposes, the other accepts or rejects. */
+export const extensions = pgTable("extensions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id),
+  proposedBy: partyRole("proposed_by").notNull(),
+  oldDeliverBy: tstz("old_deliver_by"),
+  newDeliverBy: tstz("new_deliver_by").notNull(),
+  status: extensionStatus("status").notNull().default("proposed"),
+  // The terms version created when the extension is accepted.
+  termsId: uuid("terms_id").references(() => dealTerms.id),
+  createdAt: createdAt(),
+  decidedAt: tstz("decided_at"),
+});
+
 export const reviews = pgTable("reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   dealId: uuid("deal_id")
     .notNull()
     .references(() => deals.id),
+  kind: reviewKind("kind").notNull().default("other"),
   reason: text("reason").notNull(),
   // Null while the review is open.
   decision: reviewDecision("decision"),

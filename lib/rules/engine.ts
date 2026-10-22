@@ -11,6 +11,7 @@ import {
   reviews,
   type Deal,
   type DealState,
+  type ReviewKind,
 } from "@/lib/db/schema";
 import { dealTermsSchema } from "@/lib/deals/terms";
 import { serverEnv } from "@/lib/env";
@@ -51,7 +52,14 @@ export type PaypalPort = {
   getDispute: typeof disputesApi.getDispute;
 };
 
-export type EngineDeps = { db: Db; paypal: PaypalPort; now: () => Date; timeScale: number };
+export type EngineDeps = {
+  db: Db;
+  paypal: PaypalPort;
+  now: () => Date;
+  timeScale: number;
+  /** MAX_DEAL_USD, checked again before any PayPal order is created. */
+  maxDealUsd: number;
+};
 
 let defaults: EngineDeps | undefined;
 
@@ -72,6 +80,7 @@ export function defaultDeps(): EngineDeps {
       },
       now: () => new Date(),
       timeScale: serverEnv().DEMO_TIME_SCALE,
+      maxDealUsd: serverEnv().MAX_DEAL_USD,
     };
   }
   return defaults;
@@ -134,6 +143,11 @@ async function snapshot(tx: Tx, deal: Deal): Promise<DealSnapshot> {
     .from(evidence)
     .where(and(eq(evidence.dealId, deal.id), eq(evidence.type, "tracking")))
     .limit(1);
+  const [review] = await tx
+    .select({ kind: reviews.kind })
+    .from(reviews)
+    .where(and(eq(reviews.dealId, deal.id), isNull(reviews.decision)))
+    .limit(1);
   return {
     state: deal.state,
     shipBy: deal.shipBy,
@@ -143,6 +157,7 @@ async function snapshot(tx: Tx, deal: Deal): Promise<DealSnapshot> {
     authorizedAt: deal.authorizedAt,
     authExpiresAt: deal.authExpiresAt,
     hasTracking: Boolean(tracking),
+    openReview: review?.kind ?? null,
     currentTermsHash: terms?.hash ?? null,
     confirmedHashes: { buyer: hashFor("buyer"), seller: hashFor("seller") },
   };
@@ -330,14 +345,32 @@ async function syncPaymentStatus({ tx, deal, now }: Ctx, to: DealState) {
     .where(and(eq(payments.dealId, deal.id), eq(payments.attempt, deal.paymentAttempt)));
 }
 
-async function openReview(tx: Tx, dealId: string, reason: string, note?: string) {
+async function openReview(
+  tx: Tx,
+  dealId: string,
+  review: { kind: ReviewKind; reason: string; note?: string },
+) {
   const [open] = await tx
     .select({ id: reviews.id })
     .from(reviews)
     .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)))
     .limit(1);
-  if (!open) await tx.insert(reviews).values({ dealId, reason, note });
+  if (!open) await tx.insert(reviews).values({ dealId, ...review });
 }
+
+/** Close a review the deal left without an admin decision (e.g. a late buyer confirmation). */
+async function closeReview(tx: Tx, dealId: string, to: DealState, actor: string, now: Date) {
+  await tx
+    .update(reviews)
+    .set({
+      decision: to === "CAPTURED" ? "capture" : to === "VOIDED" ? "void" : "cleared",
+      decidedBy: actor,
+      decidedAt: now,
+    })
+    .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)));
+}
+
+const REVIEW_STATES: readonly DealState[] = ["IN_REVIEW", "CAPTURE_FAILED"];
 
 async function transition(
   deps: EngineDeps,
@@ -418,11 +451,15 @@ async function transition(
 
     if (!failedIssue) Object.assign(patch, (await opts.effects?.(ctx, to)) ?? {});
     // Deals that need a person (review, or a capture PayPal refused) get an open review.
-    if ((to === "IN_REVIEW" || to === "CAPTURE_FAILED") && from !== to) {
-      const why = failedIssue
-        ? `PayPal refused ${decision.paypal}: ${failedIssue}`
-        : decision.reason;
-      await openReview(tx, dealId, why, opts.reviewNote);
+    if (REVIEW_STATES.includes(to) && from !== to) {
+      await openReview(tx, dealId, {
+        kind: failedIssue ? "paypal" : (decision.review ?? "other"),
+        reason: failedIssue ? `PayPal refused ${decision.paypal}: ${failedIssue}` : decision.reason,
+        note: opts.reviewNote,
+      });
+    } else if (REVIEW_STATES.includes(from) && !REVIEW_STATES.includes(to)) {
+      // An admin decision has already closed its review; this closes the rest.
+      await closeReview(tx, dealId, to, opts.actor, now);
     }
     await tx
       .update(deals)
@@ -467,6 +504,13 @@ export async function preparePayment(
     }
     if (!deal.amount || !deal.payeeEmail || !deal.confirmedTermsId) {
       return { ok: false, reason: "the terms are not locked yet" };
+    }
+    // Checked at creation too; again here in case MAX_DEAL_USD was lowered since (section 5.1).
+    if (Number(deal.amount) > deps.maxDealUsd) {
+      return {
+        ok: false,
+        reason: `the deal amount is above the ${deps.maxDealUsd} USD limit per deal`,
+      };
     }
     const now = deps.now();
     const audit = (action: string, details: Record<string, unknown>) =>
@@ -644,13 +688,25 @@ export function onCourierDelivered(
       actor: "courier",
       details: { eventId: input.eventId },
       effects: async (_ctx, to) =>
-        to === "DELIVERED" ? { deliveredAt: input.deliveredAt } : undefined,
+        to === "DELIVERED"
+          ? { deliveredAt: input.deliveredAt, deliveryProof: "courier" as const }
+          : undefined,
     },
   );
 }
 
 export function onBuyerConfirmed(dealId: string, deps = defaultDeps()) {
-  return transition(deps, dealId, { type: "BUYER_CONFIRMED" }, { actor: "buyer" });
+  return transition(
+    deps,
+    dealId,
+    { type: "BUYER_CONFIRMED" },
+    {
+      actor: "buyer",
+      // The buyer's word is the proof unless a courier event or handover code came first.
+      effects: async ({ deal }, to) =>
+        to === "CAPTURED" && !deal.deliveryProof ? { deliveryProof: "buyer" as const } : undefined,
+    },
+  );
 }
 
 export function onBuyerProblem(dealId: string, note: string, deps = defaultDeps()) {
@@ -661,6 +717,14 @@ export function onBuyerProblem(dealId: string, note: string, deps = defaultDeps(
     {
       actor: "buyer",
       reviewNote: note.slice(0, 2000),
+      // A deal already in a deadline review keeps that review, now marked as a complaint.
+      effects: async ({ tx, deal }) => {
+        if (deal.state !== "IN_REVIEW") return;
+        await tx
+          .update(reviews)
+          .set({ kind: "buyer_problem", note: note.slice(0, 2000) })
+          .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)));
+      },
     },
   );
 }

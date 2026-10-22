@@ -103,6 +103,12 @@ export function fakePaypal() {
 
 export function testDeps(db: Db, paypal: PaypalPort, start: Date) {
   const clock = { now: new Date(start) };
-  const deps: EngineDeps = { db, paypal, now: () => new Date(clock.now), timeScale: 1 };
+  const deps: EngineDeps = {
+    db,
+    paypal,
+    now: () => new Date(clock.now),
+    timeScale: 1,
+    maxDealUsd: 500,
+  };
   return { deps, clock, advance: (ms: number) => (clock.now = new Date(clock.now.getTime() + ms)) };
 }

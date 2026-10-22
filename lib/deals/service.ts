@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { appendAudit } from "@/lib/audit";
 import type { Db } from "@/lib/db";
 import {
@@ -9,12 +9,20 @@ import {
   dealTerms,
   evidence,
   payments,
+  reviews,
   type Deal,
   type DealState,
+  type ReviewKind,
 } from "@/lib/db/schema";
 import { newPublicRef, newRoleToken } from "@/lib/deals/ids";
 import { dealTermsSchema, parseDealTerms, termsHash, type DealTerms } from "@/lib/deals/terms";
-import { hardLimit, inspectionEndsAt, reviewAt, type DealSnapshot } from "@/lib/rules/machine";
+import {
+  hardLimit,
+  inspectionEndsAt,
+  isDeadlineReview,
+  reviewAt,
+  type DealSnapshot,
+} from "@/lib/rules/machine";
 
 // Deal data access for routes and pages. State changes go through lib/rules/engine.ts; this file
 // only creates deals, stores new terms versions while in DRAFT, and builds read-only views.
@@ -202,7 +210,7 @@ export const nairobiTime = (d: Date) => NAIROBI.format(d);
 export function statusLine(
   state: DealState,
   role: Role,
-  d: { shipBy: Date | null; inspectionEnds: Date | null },
+  d: { shipBy: Date | null; inspectionEnds: Date | null; review?: ReviewKind | null },
 ): string {
   const ship = d.shipBy ? nairobiTime(d.shipBy) : "the ship-by time";
   switch (state) {
@@ -233,6 +241,11 @@ export function statusLine(
         : `Delivered. You are paid when the buyer confirms, or automatically after ${end} if they raise no problem.`;
     }
     case "IN_REVIEW":
+      if (d.review === "deliver_by" || d.review === "day_26") {
+        return role === "buyer"
+          ? "The delivery date passed without proof of delivery. The money stays held: if you have the item, confirm receipt to pay the seller; otherwise a reviewer decides."
+          : "The delivery date passed without a verified delivery. The money stays held: you are paid if the buyer confirms receipt or the courier confirms delivery; otherwise a reviewer decides.";
+      }
       return "A SafeDeal reviewer is looking at this deal. The money stays held until they decide.";
     case "CAPTURED":
       return role === "buyer" ? "Done. The seller has been paid." : "Done. PayPal has paid you.";
@@ -298,6 +311,11 @@ export async function dealView(
     .select({ status: payments.status })
     .from(payments)
     .where(and(eq(payments.dealId, deal.id), eq(payments.attempt, deal.paymentAttempt)));
+  const [review] = await db
+    .select({ kind: reviews.kind })
+    .from(reviews)
+    .where(and(eq(reviews.dealId, deal.id), isNull(reviews.decision)))
+    .limit(1);
   const history = await db
     .select({
       at: auditLog.createdAt,
@@ -318,6 +336,7 @@ export async function dealView(
     authorizedAt: deal.authorizedAt,
     authExpiresAt: deal.authExpiresAt,
     hasTracking: ev.some((e) => e.type === "tracking"),
+    openReview: review?.kind ?? null,
     currentTermsHash: latest?.termsHash ?? null,
     confirmedHashes: { buyer: null, seller: null },
   };
@@ -336,9 +355,16 @@ export async function dealView(
   if (role === "seller" && (s === "AUTHORIZED" || s === "SHIPPED")) {
     if (s === "SHIPPED" || !deal.shipBy || opts.now < deal.shipBy) actions.push("add_tracking");
   }
-  if (role === "buyer" && (s === "AUTHORIZED" || s === "SHIPPED" || s === "DELIVERED")) {
+  if (
+    role === "buyer" &&
+    (s === "AUTHORIZED" || s === "SHIPPED" || s === "DELIVERED" || isDeadlineReview(snap))
+  ) {
     actions.push("confirm_receipt");
-    if (s === "SHIPPED" || (s === "DELIVERED" && inspectionEnds && opts.now < inspectionEnds)) {
+    if (
+      s === "SHIPPED" ||
+      isDeadlineReview(snap) ||
+      (s === "DELIVERED" && inspectionEnds && opts.now < inspectionEnds)
+    ) {
       actions.push("report_problem");
     }
   }
@@ -348,7 +374,11 @@ export async function dealView(
     ref: deal.publicRef,
     role,
     state: s,
-    statusLine: statusLine(s, role, { shipBy: deal.shipBy, inspectionEnds }),
+    statusLine: statusLine(s, role, {
+      shipBy: deal.shipBy,
+      inspectionEnds,
+      review: snap.openReview,
+    }),
     names: { seller: deal.sellerName, buyer: deal.buyerName },
     terms,
     termsVersion: latest?.version ?? 0,
