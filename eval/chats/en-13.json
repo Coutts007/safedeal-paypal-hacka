@@ -1,0 +1,18 @@
+{
+  "id": "en-13",
+  "language_mix": "english",
+  "chat_date": "2026-11-18",
+  "chat": "[18/11/2026, 21:10] Faith: Hi, is the iPhone 12 128GB available? What's the battery health?\n[18/11/2026, 21:15] Kibet: Yes available. Battery health 87%, Face ID working. 52,000\n[18/11/2026, 21:17] Faith: That's above my budget. 42k?\n[18/11/2026, 21:20] Kibet: Let me think and get back to you\n[19/11/2026, 08:30] Kibet: Morning. I can do 45k, not lower\n[19/11/2026, 08:34] Faith: Ok 45k works for me\n[19/11/2026, 08:35] Faith: I'm in Mombasa. Wells Fargo?\n[19/11/2026, 08:37] Kibet: Yes, I'll drop it at Wells Fargo on Friday\n[19/11/2026, 08:38] Faith: Great. Send the tracking number to faith.w.test@example.com\n[19/11/2026, 08:39] Kibet: Will do",
+  "gold": {
+    "item": "iPhone 12 128GB",
+    "quantity": 1,
+    "price": { "amount": "45000.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "Wells Fargo",
+    "ship_by": "2026-11-20",
+    "deliver_by": null,
+    "conditions": ["Battery health 87%", "Face ID working"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: two-day chat, negotiation 52k -> 45k; 'Friday' said on Thu 19 Nov = ship_by 2026-11-20; email to redact."
+}

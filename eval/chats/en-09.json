@@ -1,0 +1,18 @@
+{
+  "id": "en-09",
+  "language_mix": "english",
+  "chat_date": "2026-09-11",
+  "chat": "[11/09/2026, 11:10] Nyambura: Hi, do you still have Atomic Habits paperback?\n[11/09/2026, 11:14] Omondi: Yes. 1,200 including postage\n[11/09/2026, 11:15] Nyambura: Ok good. Is it the original print or a copy?\n[11/09/2026, 11:17] Omondi: Original print, no torn pages\n[11/09/2026, 11:19] Nyambura: Great. I'm in Kitale, please use Posta\n[11/09/2026, 11:20] Omondi: Sure, I'll post it on Monday\n[11/09/2026, 11:22] Nyambura: Thanks. FYI I bought from you before, M-PESA ref was SJK4H7PL2Q\n[11/09/2026, 11:23] Omondi: Haha yes I remember. Monday it is",
+  "gold": {
+    "item": "Atomic Habits paperback",
+    "quantity": 1,
+    "price": { "amount": "1200.00", "currency": "KES" },
+    "delivery_method": "post",
+    "carrier": "Posta",
+    "ship_by": "2026-09-14",
+    "deliver_by": null,
+    "conditions": ["Original print", "No torn pages"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: postage included in the single 1,200 price; 'Monday' on Fri 11 Sep = ship_by 2026-09-14; old M-PESA code to redact."
+}

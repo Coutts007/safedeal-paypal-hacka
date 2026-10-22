@@ -1,0 +1,18 @@
+{
+  "id": "en-40",
+  "language_mix": "english",
+  "chat_date": "2026-11-30",
+  "chat": "30/11/2026, 10:00 - Joyce: Hi, is the LG 7kg front load washing machine still for sale?\n30/11/2026, 10:06 - Ngugi: Yes, working well. 25,000\n30/11/2026, 10:08 - Joyce: 20k?\n30/11/2026, 10:11 - Ngugi: I can do 22k, it comes with the inlet hose\n30/11/2026, 10:12 - Joyce: Ok 22k done\n30/11/2026, 10:14 - Ngugi: Should I send with G4S or will you pick?\n30/11/2026, 10:17 - Joyce: Not sure yet. G4S might be expensive for something this heavy\nLet me check prices and tell you\n30/11/2026, 10:18 - Ngugi: Ok sawa",
+  "gold": {
+    "item": "LG 7kg front load washing machine",
+    "quantity": 1,
+    "price": { "amount": "22000.00", "currency": "KES" },
+    "delivery_method": null,
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": null,
+    "conditions": ["Working well", "Inlet hose included"]
+  },
+  "expect_flag": false,
+  "notes": "Missing fields: Android format, negotiation 25k -> 22k, delivery undecided between G4S and pickup so method and carrier are null."
+}

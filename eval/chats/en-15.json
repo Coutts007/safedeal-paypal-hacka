@@ -1,0 +1,18 @@
+{
+  "id": "en-15",
+  "language_mix": "mixed",
+  "chat_date": "2026-10-29",
+  "chat": "[29/10/2026, 19:00] Akinyi: Hi dear, zile Ankara dresses bado ziko?\n[29/10/2026, 19:04] Moraa: Ziko mami. Size gani?\n[29/10/2026, 19:05] Akinyi: Size 12. Nataka mbili, moja red na moja blue\n[29/10/2026, 19:07] Moraa: Sawa. Ni 1,500 kila moja, so 3,000 zote mbili\n[29/10/2026, 19:08] Akinyi: Poa, 3,000 sawa\n[29/10/2026, 19:10] Moraa: Nikutumie na rider? Uko wapi?\n[29/10/2026, 19:11] Akinyi: Niko Umoja. Rider ni sawa\n[29/10/2026, 19:13] Moraa: Rider atakuletea Jumamosi. Nipigie 0790 000 734 ukikosa\n[29/10/2026, 19:14] Akinyi: Asante sana",
+  "gold": {
+    "item": "Ankara dress size 12",
+    "quantity": 2,
+    "price": { "amount": "3000.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-31",
+    "conditions": ["Size 12", "One red and one blue"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: mixed Swahili, 2 dresses at 1,500 = 3,000; 'Jumamosi' (Saturday) from Thu 29 Oct = 2026-10-31; fake phone number."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "en-28",
+  "language_mix": "english",
+  "chat_date": "2026-09-06",
+  "chat": "06/09/2026, 14:00 - Lydia: Hi, do you have KLB Form 3 textbooks? I need English, Kiswahili, Maths and Chemistry\n06/09/2026, 14:07 - Nduta: Yes all four. 700 each\n06/09/2026, 14:08 - Lydia: So 2,800 for the four?\n06/09/2026, 14:09 - Nduta: Yes 2,800\n06/09/2026, 14:11 - Lydia: Ok. Are they the latest edition?\n06/09/2026, 14:12 - Nduta: Latest edition, a bit of highlighting in Maths but otherwise clean\n06/09/2026, 14:14 - Lydia: Fine, I'll buy all 4. I'll tell you how to send them once school opens\n06/09/2026, 14:15 - Nduta: Ok",
+  "gold": {
+    "item": "KLB Form 3 textbooks (English, Kiswahili, Maths, Chemistry)",
+    "quantity": 4,
+    "price": { "amount": "2800.00", "currency": "KES" },
+    "delivery_method": null,
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": null,
+    "conditions": ["Latest edition", "Some highlighting in the Maths book"]
+  },
+  "expect_flag": false,
+  "notes": "Missing fields: Android format, batch of 4 books totalling 2,800, delivery method and dates deferred."
+}

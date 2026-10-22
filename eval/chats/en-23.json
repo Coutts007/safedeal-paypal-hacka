@@ -1,0 +1,18 @@
+{
+  "id": "en-23",
+  "language_mix": "mixed",
+  "chat_date": "2026-10-04",
+  "chat": "[04/10/2026, 17:00] Mama Kevo: Habari, mnauza K-Gas 13kg full na cylinder?\n[04/10/2026, 17:05] Salim: Ndio mama. Ni 7,000 kila moja\n[04/10/2026, 17:06] Mama Kevo: Nataka mbili. Mbili zote ni 14,000? Punguza kidogo\n[04/10/2026, 17:09] Salim: Sawa, mbili nitakupea 13,000 jumla\n[04/10/2026, 17:10] Mama Kevo: Poa, 13,000 sawa. Ziwe na regulator?\n[04/10/2026, 17:12] Salim: Hapana, regulator haiko. Ni cylinder na gas tu, zimejaa\n[04/10/2026, 17:13] Mama Kevo: Ok sawa. Mtaleta na boda?\n[04/10/2026, 17:15] Salim: Ndio, boda italeta kesho asubuhi\n[04/10/2026, 17:15] Mama Kevo: Asante",
+  "gold": {
+    "item": "K-Gas 13kg cylinder (full)",
+    "quantity": 2,
+    "price": { "amount": "13000.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-05",
+    "conditions": ["Cylinders full", "No regulator included"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: mixed Swahili, quantity 2 negotiated from 14,000 to 13,000 total; 'kesho' on Sun 4 Oct = 2026-10-05."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "en-26",
+  "language_mix": "english",
+  "chat_date": "2026-10-09",
+  "chat": "[09/10/2026, 06:40] Daniel: Hi, I'm in Nairobi. You posted Air Jordan 4 in the Kenyans in Houston group. Size 43 available?\n[09/10/2026, 06:52] Grace: Hi! Yes size 43, Military Black colourway, brand new in box. $150\n[09/10/2026, 06:55] Daniel: Ok $150 works. How will you ship?\n[09/10/2026, 07:01] Grace: DHL Express to Nairobi. I'll ship on Monday\n[09/10/2026, 07:03] Daniel: Great. Shipping is included in the $150?\n[09/10/2026, 07:05] Grace: Yes, $150 total with DHL shipping\n[09/10/2026, 07:06] Daniel: Deal. Email me the DHL tracking at dan.k.test@example.com\n[09/10/2026, 07:07] Grace: Will do",
+  "gold": {
+    "item": "Air Jordan 4 Military Black, size 43",
+    "quantity": 1,
+    "price": { "amount": "150.00", "currency": "USD" },
+    "delivery_method": "courier",
+    "carrier": "DHL",
+    "ship_by": "2026-10-12",
+    "deliver_by": null,
+    "conditions": ["Size 43", "Brand new in box", "Military Black colourway"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: diaspora seller in USD, single total includes DHL shipping; 'Monday' said on Fri 9 Oct = ship_by 2026-10-12; email to redact."
+}

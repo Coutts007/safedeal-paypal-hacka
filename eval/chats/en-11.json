@@ -1,0 +1,18 @@
+{
+  "id": "en-11",
+  "language_mix": "english",
+  "chat_date": "2026-09-14",
+  "chat": "[14/09/2026, 07:50] Wairimu: Good morning. I need 3 full school uniform sets for my kids, Hillcrest Primary\n[14/09/2026, 07:55] Ouma: Morning madam. Each set is shirt, shorts and navy sweater, 1,500 per set\n[14/09/2026, 07:57] Wairimu: Ok so 3 sets is 4,500 total?\n[14/09/2026, 07:58] Ouma: Yes 4,500 for all three\n[14/09/2026, 08:00] Wairimu: Sizes: one age 8, two age 10\n[14/09/2026, 08:01] Ouma: Noted, I have those sizes\n[14/09/2026, 08:03] Wairimu: Please send to Nakuru by G4S\n[14/09/2026, 08:05] Ouma: Ok I'll drop them at G4S on Wednesday\n[14/09/2026, 08:05] Wairimu: Thank you",
+  "gold": {
+    "item": "Hillcrest Primary school uniform set (shirt, shorts, sweater)",
+    "quantity": 3,
+    "price": { "amount": "4500.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "G4S",
+    "ship_by": "2026-09-16",
+    "deliver_by": null,
+    "conditions": ["One set age 8, two sets age 10", "Navy sweater"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: batch of 3 at 1,500 each, total 4,500; 'Wednesday' on Mon 14 Sep = ship_by 2026-09-16."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "en-03",
+  "language_mix": "english",
+  "chat_date": "2026-09-17",
+  "chat": "[17/09/2026, 12:40] Kevin: Hey, the white Air Force 1s, do you have size 42?\n[17/09/2026, 12:42] Mercy: Yes size 42 available, brand new in box\n[17/09/2026, 12:43] Kevin: Price?\n[17/09/2026, 12:43] Mercy: 4,500\n[17/09/2026, 12:45] Kevin: I'll give you 3,000\n[17/09/2026, 12:47] Mercy: No, 3k I can't. That's below what I bought them for\n[17/09/2026, 12:48] Kevin: Ok let's meet in the middle, 3,500?\n[17/09/2026, 12:50] Mercy: Hmm ok, 3,500 final\n[17/09/2026, 12:51] Kevin: Can I pick them up at Sarit Centre?\n[17/09/2026, 12:52] Mercy: Yes, Saturday around 2pm at Sarit\n[17/09/2026, 12:52] Kevin: Poa, see you Saturday",
+  "gold": {
+    "item": "Nike Air Force 1 white, size 42",
+    "quantity": 1,
+    "price": { "amount": "3500.00", "currency": "KES" },
+    "delivery_method": "pickup",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-19",
+    "conditions": ["Size 42", "White", "Brand new in box"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: buyer offers 3,000, seller refuses, they settle in the middle at 3,500; pickup 'Saturday' from Thu 17 Sep = 2026-09-19."
+}

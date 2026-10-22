@@ -1,0 +1,18 @@
+{
+  "id": "en-34",
+  "language_mix": "english",
+  "chat_date": "2026-10-10",
+  "chat": "[10/10/2026, 18:30] Eric: Hi, the red and black gaming chair, how much?\n[10/10/2026, 18:36] Shiru: 16,000\n[10/10/2026, 18:38] Eric: Hmm that's high. 11k?\n[10/10/2026, 18:42] Shiru: No, maybe 15k\n[10/10/2026, 18:44] Eric: Let me talk to my wife and get back to you on the price\n[10/10/2026, 18:45] Shiru: Ok. If you take it, a boda can bring it to you\n[10/10/2026, 18:46] Eric: Yes boda is fine, I'm in Kasarani\n[10/10/2026, 18:47] Shiru: Ok, let me know",
+  "gold": {
+    "item": "Red and black gaming chair",
+    "quantity": 1,
+    "price": null,
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": null,
+    "conditions": []
+  },
+  "expect_flag": false,
+  "notes": "Missing fields: price never agreed (15k offered, buyer defers) so price is null; delivery method rider agreed; no dates."
+}

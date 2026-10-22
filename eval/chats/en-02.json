@@ -1,0 +1,18 @@
+{
+  "id": "en-02",
+  "language_mix": "english",
+  "chat_date": "2026-09-08",
+  "chat": "[08/09/2026, 18:20] Wanjiru: Hello, I saw your HP EliteBook 840 G5 post. I'm in Dallas but buying it for my brother in Nairobi\n[08/09/2026, 18:24] Otieno: Hi, yes still available. Core i5, 8GB RAM, 256GB SSD\n[08/09/2026, 18:25] Wanjiru: Since I'm paying from the US, can you quote in dollars?\n[08/09/2026, 18:27] Otieno: $320 then\n[08/09/2026, 18:29] Wanjiru: Ok $320 works. Does it come with the charger?\n[08/09/2026, 18:30] Otieno: Yes original HP charger included\n[08/09/2026, 18:32] Wanjiru: My brother is in South B. Can a rider bring it to him?\n[08/09/2026, 18:33] Otieno: Sure, I'll send a boda guy, he'll have it by Saturday\n[08/09/2026, 18:34] Wanjiru: Great, thanks",
+  "gold": {
+    "item": "HP EliteBook 840 G5 laptop",
+    "quantity": 1,
+    "price": { "amount": "320.00", "currency": "USD" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-12",
+    "conditions": ["Core i5, 8GB RAM, 256GB SSD", "Comes with original charger"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: diaspora buyer paying in USD; 'by Saturday' on Tue 8 Sep resolves to deliver_by 2026-09-12."
+}

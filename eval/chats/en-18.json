@@ -1,0 +1,18 @@
+{
+  "id": "en-18",
+  "language_mix": "english",
+  "chat_date": "2026-09-21",
+  "chat": "[21/09/2026, 08:05] Kariuki: Morning, do you have a right headlight for Subaru Forester SJ?\n[21/09/2026, 08:10] Abdi: Yes, ex-Japan, right side. 10,500\n[21/09/2026, 08:12] Kariuki: Too much bro. 8k?\n[21/09/2026, 08:15] Abdi: 9,000 last. It's clean, no cracks on the lens\n[21/09/2026, 08:16] Kariuki: Ok 9k. I'm in Nyeri, send it by 2NK parcel\n[21/09/2026, 08:18] Abdi: Sawa, I'll take it to the 2NK office today\nYou pay the parcel fee when you collect\n[21/09/2026, 08:19] Kariuki: No problem",
+  "gold": {
+    "item": "Subaru Forester SJ right headlight",
+    "quantity": 1,
+    "price": { "amount": "9000.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "2NK",
+    "ship_by": "2026-09-21",
+    "deliver_by": null,
+    "conditions": ["Right side", "Ex-Japan", "No cracks on the lens"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: matatu parcel (2NK) counts as courier; negotiation 10,500 -> 9,000; 'today' = 2026-09-21; parcel fee paid separately so price is item only."
+}

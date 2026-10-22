@@ -1,0 +1,18 @@
+{
+  "id": "en-04",
+  "language_mix": "english",
+  "chat_date": "2026-09-30",
+  "chat": "30/09/2026, 10:15 - Nafula: Good morning. Is the grey 3-seater sofa still for sale?\n30/09/2026, 10:20 - Mutua: Morning. Yes it is. 28,000\n30/09/2026, 10:22 - Nafula: Fine, 28k is ok with me. Any stains or tears?\n30/09/2026, 10:25 - Mutua: None. Fabric is clean, no tears\n30/09/2026, 10:26 - Nafula: How will it get to me? I'm in Kitengela\n30/09/2026, 10:29 - Mutua: I have my own pickup truck, I'll bring it myself\nNo extra charge for Kitengela\n30/09/2026, 10:31 - Nafula: Great. Can you deliver on 3rd October?\n30/09/2026, 10:32 - Mutua: Yes 3rd October works. Call me on 0722 000 418 when you're home\n30/09/2026, 10:33 - Nafula: Ok, thank you",
+  "gold": {
+    "item": "Grey 3-seater sofa",
+    "quantity": 1,
+    "price": { "amount": "28000.00", "currency": "KES" },
+    "delivery_method": "other",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-03",
+    "conditions": ["Grey fabric", "No stains or tears"]
+  },
+  "expect_flag": false,
+  "notes": "Android format with a two-line message and a fake phone number; seller delivers in his own truck so delivery_method is 'other'."
+}

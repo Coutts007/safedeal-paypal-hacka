@@ -1,0 +1,18 @@
+{
+  "id": "en-37",
+  "language_mix": "english",
+  "chat_date": "2026-11-23",
+  "chat": "[23/11/2026, 13:00] Victor: Hi, I'm in Seattle, buying the Galaxy S23 for my mum in Kakamega. Is it the 256GB green one?\n[23/11/2026, 13:08] Lucy: Hi Victor. Yes, 256GB, green, no scratches. $430\n[23/11/2026, 13:10] Victor: Ok $430 works\n[23/11/2026, 13:12] Victor: Can you send by Easy Coach to Kakamega?\n[23/11/2026, 13:15] Lucy: Yes. I'll book it on Easy Coach on 25/11/2026\nShe can collect at their Kakamega office\n[23/11/2026, 13:16] Victor: Great. Is the charger included?\n[23/11/2026, 13:18] Lucy: Only the cable, no charging brick\n[23/11/2026, 13:19] Victor: That's fine",
+  "gold": {
+    "item": "Samsung Galaxy S23 256GB green",
+    "quantity": 1,
+    "price": { "amount": "430.00", "currency": "USD" },
+    "delivery_method": "courier",
+    "carrier": "Easy Coach",
+    "ship_by": "2026-11-25",
+    "deliver_by": null,
+    "conditions": ["256GB", "Green", "No scratches", "Cable included, no charging brick"]
+  },
+  "expect_flag": false,
+  "notes": "Diaspora buyer in USD; Easy Coach parcel counts as courier even though recipient collects at the office; absolute ship date."
+}

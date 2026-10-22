@@ -1,0 +1,18 @@
+{
+  "id": "en-06",
+  "language_mix": "english",
+  "chat_date": "2026-10-13",
+  "chat": "[13/10/2026, 20:05] Kamau: Hi, I'm in London and want to surprise my son in Nairobi with a PS5. Is yours the disc edition?\n[13/10/2026, 20:09] Zawadi: Hi Kamau. Yes, disc edition with 2 controllers and FIFA 25. $480\n[13/10/2026, 20:11] Kamau: Can you do $430?\n[13/10/2026, 20:15] Zawadi: I can do $450, that's the lowest\n[13/10/2026, 20:16] Kamau: Ok $450 deal\n[13/10/2026, 20:17] Kamau: Please send the receipt to kamau.j.test@example.com\n[13/10/2026, 20:18] Zawadi: Noted. Where in Nairobi?\n[13/10/2026, 20:19] Kamau: Kileleshwa. Can a rider take it?\n[13/10/2026, 20:21] Zawadi: Yes my rider will deliver it kesho\n[13/10/2026, 20:22] Kamau: Thank you! He'll be so happy",
+  "gold": {
+    "item": "Sony PS5 disc edition",
+    "quantity": 1,
+    "price": { "amount": "450.00", "currency": "USD" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-14",
+    "conditions": ["Two controllers included", "FIFA 25 game included"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: USD negotiation 480 -> 450 with an email to redact; 'kesho' on Tue 13 Oct = deliver_by 2026-10-14."
+}

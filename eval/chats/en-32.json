@@ -1,0 +1,18 @@
+{
+  "id": "en-32",
+  "language_mix": "english",
+  "chat_date": "2026-09-26",
+  "chat": "26/09/2026, 10:30 - Brenda: Hi, are the Sony WH-1000XM4 headphones still available?\n26/09/2026, 10:36 - Kipchumba: Yes. Black, with case and cable. I'm pricing in dollars, $180\n26/09/2026, 10:37 - Brenda: Fine, $180. Noise cancelling works well?\n26/09/2026, 10:39 - Kipchumba: Works perfectly\n26/09/2026, 10:41 - Brenda: I'm in Kitale. Can you post them? Posta EMS\n26/09/2026, 10:43 - Kipchumba: Yes, I'll post them on 28/09/2026\n26/09/2026, 10:44 - Brenda: Ok. Call me on 0700 000 316 when you post\n26/09/2026, 10:45 - Kipchumba: Sure",
+  "gold": {
+    "item": "Sony WH-1000XM4 headphones",
+    "quantity": 1,
+    "price": { "amount": "180.00", "currency": "USD" },
+    "delivery_method": "post",
+    "carrier": "Posta",
+    "ship_by": "2026-09-28",
+    "deliver_by": null,
+    "conditions": ["Black", "Carry case and cable included", "Noise cancelling works"]
+  },
+  "expect_flag": false,
+  "notes": "Android format, USD price, Posta Kenya EMS with an absolute ship date; fake phone number."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "en-16",
+  "language_mix": "english",
+  "chat_date": "2026-11-10",
+  "chat": "10/11/2026, 17:40 - Barasa: Hi, I'm in Toronto. My sister in Mombasa needs a laptop. Is the Dell Latitude 5490 still there?\n10/11/2026, 17:45 - Wambui: Yes. Core i5 8th gen, 16GB RAM, 256GB SSD. Since you're paying from abroad, $300\n10/11/2026, 17:47 - Barasa: Could you do $260?\n10/11/2026, 17:52 - Wambui: $280 is my best\n10/11/2026, 17:53 - Barasa: Alright, $280 it is\n10/11/2026, 17:55 - Barasa: How do we get it to Mombasa?\n10/11/2026, 17:58 - Wambui: I'll book Sendy, she'll have it by Friday\n10/11/2026, 17:59 - Barasa: Perfect, thanks",
+  "gold": {
+    "item": "Dell Latitude 5490 laptop",
+    "quantity": 1,
+    "price": { "amount": "280.00", "currency": "USD" },
+    "delivery_method": "courier",
+    "carrier": "Sendy",
+    "ship_by": null,
+    "deliver_by": "2026-11-13",
+    "conditions": ["Core i5 8th gen", "16GB RAM, 256GB SSD"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Android format, USD negotiation 300 -> 280; 'by Friday' on Tue 10 Nov = deliver_by 2026-11-13."
+}

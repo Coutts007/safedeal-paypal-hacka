@@ -1,0 +1,18 @@
+{
+  "id": "en-29",
+  "language_mix": "english",
+  "chat_date": "2026-11-02",
+  "chat": "[02/11/2026, 19:30] Peter K: Hi, is the Lenovo ThinkPad T480 available? I'm paying from Dubai for my cousin in Nairobi\n[02/11/2026, 19:36] Anyango: Yes. i5, 8GB RAM, 512GB SSD, backlit keyboard. $280\n[02/11/2026, 19:38] Peter K: $240?\n[02/11/2026, 19:42] Anyango: Can't go that low. $250 final\n[02/11/2026, 19:43] Peter K: Ok $250 done\n[02/11/2026, 19:45] Peter K: Cousin is in Donholm, his number is 0768 000 457\n[02/11/2026, 19:47] Anyango: Ok, a rider will deliver to him by Thursday\n[02/11/2026, 19:48] Peter K: Thanks a lot",
+  "gold": {
+    "item": "Lenovo ThinkPad T480 laptop",
+    "quantity": 1,
+    "price": { "amount": "250.00", "currency": "USD" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-11-05",
+    "conditions": ["Core i5, 8GB RAM, 512GB SSD", "Backlit keyboard"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: USD negotiation 280 -> 250; 'by Thursday' on Mon 2 Nov = deliver_by 2026-11-05; fake phone number."
+}

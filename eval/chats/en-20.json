@@ -1,0 +1,18 @@
+{
+  "id": "en-20",
+  "language_mix": "english",
+  "chat_date": "2026-11-23",
+  "chat": "23/11/2026, 11:15 - Muthoni: Hi, the black ergonomic office chair, how much?\n23/11/2026, 11:18 - Owino: 8,500. Adjustable height and lumbar support\n23/11/2026, 11:20 - Muthoni: Ok 8,500 works. Can you deliver today? I'm in Kilimani\n23/11/2026, 11:22 - Owino: Yes a rider can bring it this evening. Rider fee is 300, you pay him directly\n23/11/2026, 11:23 - Muthoni: Fine. My number is 0745 000 812\n23/11/2026, 11:24 - Owino: Noted. He'll call you before 6pm\n23/11/2026, 11:25 - Muthoni: Thanks",
+  "gold": {
+    "item": "Black ergonomic office chair",
+    "quantity": 1,
+    "price": { "amount": "8500.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-11-23",
+    "conditions": ["Black", "Adjustable height", "Lumbar support"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: rider fee of 300 paid separately to rider, so gold price is the item only (8,500); 'this evening' = 2026-11-23."
+}

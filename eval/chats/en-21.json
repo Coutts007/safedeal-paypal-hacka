@@ -1,0 +1,18 @@
+{
+  "id": "en-21",
+  "language_mix": "english",
+  "chat_date": "2026-09-02",
+  "chat": "[02/09/2026, 09:30] Wangari: Hi, is the LG 20 litre microwave still available?\n[02/09/2026, 09:34] Kiplagat: Yes, solo microwave, works perfectly. 7,500\n[02/09/2026, 09:36] Wangari: Ok I'll take it at 7,500\n[02/09/2026, 09:37] Wangari: Please send it to Thika by G4S\n[02/09/2026, 09:39] Kiplagat: Ok, I can drop it at G4S tomorrow\n[02/09/2026, 10:15] Wangari: Actually, change of plan. I'll be in town on Saturday, I'll just come pick it up myself. Don't send it\n[02/09/2026, 10:18] Kiplagat: No problem, cancel G4S. Come Saturday, I'm at Tom Mboya street\n[02/09/2026, 10:19] Wangari: Great, Saturday then",
+  "gold": {
+    "item": "LG 20L solo microwave",
+    "quantity": 1,
+    "price": { "amount": "7500.00", "currency": "KES" },
+    "delivery_method": "pickup",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-05",
+    "conditions": ["Working perfectly"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: delivery method changes midway from G4S courier to buyer pickup; gold is the final pickup on 'Saturday' from Wed 2 Sep = 2026-09-05."
+}

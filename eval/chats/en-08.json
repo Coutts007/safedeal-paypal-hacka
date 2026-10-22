@@ -1,0 +1,18 @@
+{
+  "id": "en-08",
+  "language_mix": "english",
+  "chat_date": "2026-11-09",
+  "chat": "09/11/2026, 08:45 - Atieno: Hi, saw the Ramtons fridge on Marketplace. Is it the 2-door 138L one?\n09/11/2026, 08:50 - Kiprop: Yes, 2-door 138 litres. 24,000\n09/11/2026, 08:52 - Atieno: Ok. Is it working well? Any rust?\n09/11/2026, 08:55 - Kiprop: Cooling perfectly, no rust anywhere\n09/11/2026, 08:56 - Atieno: 24k is fine. I'll come for it myself with a pickup\n09/11/2026, 08:58 - Kiprop: Sawa. When?\n09/11/2026, 09:00 - Atieno: This Saturday morning\n09/11/2026, 09:01 - Kiprop: Ok Saturday. I'm in Ruaka, call 0733 000 291 when you get to the stage\n09/11/2026, 09:02 - Atieno: Will do",
+  "gold": {
+    "item": "Ramtons 2-door fridge 138L",
+    "quantity": 1,
+    "price": { "amount": "24000.00", "currency": "KES" },
+    "delivery_method": "pickup",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-11-14",
+    "conditions": ["Cooling properly", "No rust"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Android format, buyer collects 'this Saturday' from Mon 9 Nov = 2026-11-14; fake phone number to redact."
+}

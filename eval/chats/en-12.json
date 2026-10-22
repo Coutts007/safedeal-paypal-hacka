@@ -1,0 +1,18 @@
+{
+  "id": "en-12",
+  "language_mix": "english",
+  "chat_date": "2026-10-08",
+  "chat": "08/10/2026, 15:20 - Mwangi: Hello, how much is Bamburi cement 50kg?\n08/10/2026, 15:22 - Halima: 900 per bag\n08/10/2026, 15:23 - Mwangi: I need 5 bags. Can you do 800 each?\n08/10/2026, 15:26 - Halima: 800 no. For 5 bags I can do 850 each, so 4,250 total\n08/10/2026, 15:27 - Mwangi: Ok 4,250 for 5 bags, deal\n08/10/2026, 15:28 - Mwangi: I'll come with my pickup to collect tomorrow morning\n08/10/2026, 15:30 - Halima: Ok. We open at 7. Hardware is next to Kahawa Sukari stage\nCall 0711 000 563 if you get lost\n08/10/2026, 15:31 - Mwangi: Sawa, see you tomorrow",
+  "gold": {
+    "item": "Bamburi cement 50kg bag",
+    "quantity": 5,
+    "price": { "amount": "4250.00", "currency": "KES" },
+    "delivery_method": "pickup",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-09",
+    "conditions": []
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Android format batch of 5, per-bag negotiation 900 -> 850 giving total 4,250; pickup 'tomorrow' from Thu 8 Oct = 2026-10-09."
+}
