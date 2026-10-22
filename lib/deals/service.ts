@@ -2,8 +2,13 @@ import { timingSafeEqual } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { appendAudit } from "@/lib/audit";
 import type { Db } from "@/lib/db";
+import { parseChat, type ChatMessage } from "@/lib/ai/chat";
+import { carrySourceRefs, sourceRefs, toProposal, type SourceRefs } from "@/lib/ai/proposal";
+import { usableExtraction } from "@/lib/ai/service";
 import {
+  aiExtractions,
   auditLog,
+  chatSources,
   confirmations,
   deals,
   dealTerms,
@@ -53,11 +58,43 @@ export function dealLinks(
   return { seller: link(deal.sellerToken), buyer: link(deal.buyerToken) };
 }
 
-export type NewDealInput = { terms: unknown; sellerName: string; buyerName: string };
+export type NewDealInput = {
+  terms: unknown;
+  sellerName: string;
+  buyerName: string;
+  /** The chat the AI read for this deal, if the seller started from one. */
+  extractionId?: string | null;
+};
 
-/** A seller creates a DRAFT deal from hand-entered terms (version 1). */
-export async function createDeal(db: Db, input: NewDealInput, maxUsd: number) {
-  const terms = parseDealTerms(input.terms, maxUsd);
+/** Agreed dates must still be ahead, and shipping cannot come after delivery. */
+export function checkTermDates(terms: DealTerms, now: Date): void {
+  const ship = terms.shipBy ? Date.parse(terms.shipBy) : null;
+  const deliver = terms.deliverBy ? Date.parse(terms.deliverBy) : null;
+  if (ship !== null && ship <= now.getTime()) throw new Error("The ship-by date has passed");
+  if (deliver !== null && deliver <= now.getTime()) {
+    throw new Error("The deliver-by date has passed");
+  }
+  if (ship !== null && deliver !== null && ship > deliver) {
+    throw new Error("The ship-by date is after the deliver-by date");
+  }
+}
+
+/**
+ * A seller creates a DRAFT deal (terms version 1), by hand or from a chat the AI read. With a
+ * chat, the redacted chat is kept with the deal and each field records the messages it came from.
+ */
+export async function createDeal(
+  db: Db,
+  input: NewDealInput,
+  opts: { maxUsd: number; kesPerUsd: number; now: Date },
+) {
+  const terms = parseDealTerms(input.terms, opts.maxUsd);
+  checkTermDates(terms, opts.now);
+  const chat = input.extractionId ? await usableExtraction(db, input.extractionId, opts.now) : null;
+  if (input.extractionId && !chat) {
+    throw new Error("This chat reading has expired or was already used. Read the chat again.");
+  }
+  const refs = chat?.extraction && sourceRefs(toProposal(chat.extraction, opts.kesPerUsd), terms);
   return db.transaction(async (tx) => {
     const [deal] = await tx
       .insert(deals)
@@ -74,13 +111,23 @@ export async function createDeal(db: Db, input: NewDealInput, maxUsd: number) {
       version: 1,
       termsJson: terms,
       termsHash: termsHash(terms),
-      proposedBy: "user",
+      sourceRefsJson: refs ?? {},
+      proposedBy: refs ? "ai" : "user",
     });
+    if (chat) {
+      await tx.insert(chatSources).values({
+        dealId: deal.id,
+        redactedText: chat.redactedText,
+        languageMix: chat.extraction?.language_mix ?? null,
+        uploadedBy: "seller",
+      });
+      await tx.update(aiExtractions).set({ dealId: deal.id }).where(eq(aiExtractions.id, chat.id));
+    }
     await appendAudit(tx, {
       dealId: deal.id,
       actor: "seller",
       action: "deal.created",
-      details: { termsVersion: 1 },
+      details: { termsVersion: 1, fromChat: Boolean(chat), aiProposal: Boolean(refs) },
     });
     return deal;
   });
@@ -98,13 +145,19 @@ export async function proposeTerms(
   maxUsd: number,
 ) {
   const terms = parseDealTerms(input, maxUsd);
+  checkTermDates(terms, new Date());
   const hash = termsHash(terms);
   return db.transaction(async (tx): Promise<TermsUpdate> => {
     const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).for("no key update");
     if (!deal) return { ok: false, reason: "deal not found" };
     if (deal.state !== "DRAFT") return { ok: false, reason: "the terms are locked" };
     const [latest] = await tx
-      .select({ version: dealTerms.version, hash: dealTerms.termsHash, json: dealTerms.termsJson })
+      .select({
+        version: dealTerms.version,
+        hash: dealTerms.termsHash,
+        json: dealTerms.termsJson,
+        refs: dealTerms.sourceRefsJson,
+      })
       .from(dealTerms)
       .where(eq(dealTerms.dealId, dealId))
       .orderBy(desc(dealTerms.version))
@@ -119,9 +172,16 @@ export async function proposeTerms(
     }
     if (latest?.hash === hash) return { ok: true, version: latest.version, termsHash: hash };
     const version = (latest?.version ?? 0) + 1;
-    await tx
-      .insert(dealTerms)
-      .values({ dealId, version, termsJson: terms, termsHash: hash, proposedBy: "user" });
+    // Fields left unchanged keep citing the chat; changed ones no longer do.
+    const refs = latest && carrySourceRefs(latest.refs, dealTermsSchema.parse(latest.json), terms);
+    await tx.insert(dealTerms).values({
+      dealId,
+      version,
+      termsJson: terms,
+      termsHash: hash,
+      sourceRefsJson: refs ?? {},
+      proposedBy: "user",
+    });
     await tx
       .update(deals)
       .set({ version: deal.version + 1, updatedAt: new Date() })
@@ -297,6 +357,22 @@ export async function dealView(
       ).map((c) => c.role)
     : [];
   const terms: DealTerms | null = latest ? dealTermsSchema.parse(latest.termsJson) : null;
+  // The chat the deal came from (redacted), so each field can show the messages it cites.
+  const [chat] = await db
+    .select({ text: chatSources.redactedText })
+    .from(chatSources)
+    .where(eq(chatSources.dealId, deal.id))
+    .limit(1);
+  const [reading] = chat
+    ? await db
+        .select({ extraction: aiExtractions.extractionJson })
+        .from(aiExtractions)
+        .where(eq(aiExtractions.dealId, deal.id))
+        .limit(1)
+    : [];
+  const flagged =
+    (reading?.extraction as { instruction_flags?: { message_id: string; reason: string }[] } | null)
+      ?.instruction_flags ?? [];
   const ev = await db
     .select({
       type: evidence.type,
@@ -381,6 +457,9 @@ export async function dealView(
     }),
     names: { seller: deal.sellerName, buyer: deal.buyerName },
     terms,
+    sources: (latest?.sourceRefsJson ?? {}) as Partial<SourceRefs>,
+    chat: chat ? parseChat(chat.text) : ([] as ChatMessage[]),
+    chatFlags: flagged.map((f) => ({ messageId: f.message_id, reason: f.reason })),
     termsVersion: latest?.version ?? 0,
     termsHash: latest?.termsHash ?? null,
     confirmed: {

@@ -21,6 +21,8 @@ export default defineConfig({
       APP_BASE_URL: "http://localhost:3000",
       PAYPAL_CLIENT_ID: "test-id",
       PAYPAL_CLIENT_SECRET: "test-secret",
+      // AI tests use a fake model; never call Anthropic from tests.
+      LLM_API_KEY: "",
     },
   },
 });

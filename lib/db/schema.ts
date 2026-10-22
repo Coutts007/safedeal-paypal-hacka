@@ -122,6 +122,39 @@ export const dealTerms = pgTable(
   (t) => [uniqueIndex("deal_terms_deal_version").on(t.dealId, t.version)],
 );
 
+/**
+ * A chat read by the AI before a deal exists (Phase 4). Holds the redacted chat and the AI's
+ * proposal so the deal can cite its sources; linked to the deal the seller then creates.
+ */
+export const aiExtractions = pgTable("ai_extractions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  redactedText: text("redacted_text").notNull(),
+  messagesJson: jsonb("messages_json").notNull(),
+  // Null when the AI could not produce a valid proposal (the seller fills the card by hand).
+  extractionJson: jsonb("extraction_json"),
+  status: text("status").notNull(),
+  chatDate: text("chat_date").notNull(),
+  promptVersion: text("prompt_version").notNull(),
+  dealId: uuid("deal_id").references(() => deals.id),
+  createdAt: createdAt(),
+});
+
+/** Every AI call: prompt version, model, tokens and latency. Never chat content (BUILD_PLAN 8.3). */
+export const aiRuns = pgTable("ai_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  extractionId: uuid("extraction_id").references(() => aiExtractions.id),
+  purpose: text("purpose").notNull(),
+  promptVersion: text("prompt_version").notNull(),
+  model: text("model").notNull(),
+  attempt: integer("attempt").notNull(),
+  outcome: text("outcome").notNull(),
+  inputTokens: integer("input_tokens").notNull(),
+  outputTokens: integer("output_tokens").notNull(),
+  latencyMs: integer("latency_ms").notNull(),
+  detail: text("detail"),
+  createdAt: createdAt(),
+});
+
 export const confirmations = pgTable(
   "confirmations",
   {
