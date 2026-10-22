@@ -112,3 +112,15 @@ Postgres 16 service) on every push. Database tests create and migrate their own 
 - `next build`: succeeded. Lint, type check, format: clean.
 - Not verified by Claude: paying as the sandbox buyer in the browser, Render deployment, PayPal
   webhooks to the live URL. These are Peter's Gate 2 steps.
+
+### Plan update of 22 October (2026-10-22, local)
+
+- `npm test`: 128 passed (adds: late buyer confirmation or verified delivery after a deliver-by or
+  day-26 review settles it; a complaint or PayPal review cannot be cleared that way; a problem
+  during a deadline review stays in review; no void after a recorded delivery; review kinds).
+- `npm run test:db`: 51 passed (adds, end to end: deliver-by passed → IN_REVIEW → late buyer
+  confirmation → CAPTURED with `delivery_proof = buyer` and the review closed; late courier
+  delivery → DELIVERED → CAPTURED after the inspection window; complaint during a deadline review
+  blocks a late delivery from clearing it; buyer silent after a verified delivery → CAPTURED; no
+  PayPal order above `MAX_DEAL_USD`).
+- Migration 0003 applied to the development and test databases. Type check and lint clean.
