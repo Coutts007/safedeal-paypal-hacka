@@ -143,7 +143,7 @@ async function main() {
     console.log(`  ${demo.sellerName}'s link (seller): ${link(deal.sellerToken)}`);
     console.log(`  ${demo.buyerName}'s link (buyer):  ${link(deal.buyerToken)}`);
   }
-  console.log("\n(The Deal Room page arrives in Phase 3; the links are for then.)");
+  console.log("\nOpen each link in its own browser window (one per party).");
 }
 
 main()
