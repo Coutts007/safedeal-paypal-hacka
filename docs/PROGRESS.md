@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-21 (Nairobi)_
+_Last updated: 2026-10-22 (Nairobi)_
 
 ## Current phase
 
@@ -78,6 +78,18 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
 evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /api/health`.
 - Pages: `/` (hand-entered deal form), `/deal/[ref]?t=` (Deal Room with v6 PayPal button).
 - `render.yaml` (web + Postgres + cron), `scripts/migrate.ts`, `scripts/cron-sweep.mjs`.
+
+### Plan update of 22 October (branch `phase-3a-plan-update`, on top of Phase 3)
+
+- `docs/BUILD_PLAN.md` replaced by Peter's 22 Oct plan, keeping the 21 Oct amendments.
+- Section 7.1 rules due by Phase 3: a late buyer confirmation or verified courier delivery after a
+  deliver-by or day-26 review still pays the seller; a complaint or PayPal problem still needs an
+  admin. Reviews have a `kind` and are closed when the deal leaves review.
+- `delivery_proof` recorded; ship-by void also requires no recorded delivery.
+- `MAX_DEAL_USD` checked again before any PayPal order is created.
+- Migration 0003: `delivery_proof`, handover columns, `extensions` table, `reviews.kind`
+  (handover and extension behaviour stay in Phase 5).
+- Deal Room: deadline-review status lines; buyer can confirm receipt or report a problem there.
 
 ## Blocked / waiting on Peter
 
