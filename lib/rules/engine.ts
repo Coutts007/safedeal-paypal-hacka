@@ -11,6 +11,7 @@ import {
   reviews,
   type Deal,
   type DealState,
+  type ReviewKind,
 } from "@/lib/db/schema";
 import { dealTermsSchema } from "@/lib/deals/terms";
 import { serverEnv } from "@/lib/env";
@@ -24,6 +25,7 @@ import type { PaypalResult } from "@/lib/paypal/result";
 import {
   defaultDeadlines,
   HELD_STATES,
+  MAX_PENDING_TRIES,
   nextState,
   type DealSnapshot,
   type Decision,
@@ -41,6 +43,7 @@ import {
 // connection while the lock is held.
 
 export type PaypalPort = {
+  createOrder: typeof ordersApi.createOrder;
   getOrder: typeof ordersApi.getOrder;
   authorizeOrder: typeof ordersApi.authorizeOrder;
   capture: typeof paymentsApi.capture;
@@ -49,7 +52,14 @@ export type PaypalPort = {
   getDispute: typeof disputesApi.getDispute;
 };
 
-export type EngineDeps = { db: Db; paypal: PaypalPort; now: () => Date; timeScale: number };
+export type EngineDeps = {
+  db: Db;
+  paypal: PaypalPort;
+  now: () => Date;
+  timeScale: number;
+  /** MAX_DEAL_USD, checked again before any PayPal order is created. */
+  maxDealUsd: number;
+};
 
 let defaults: EngineDeps | undefined;
 
@@ -60,6 +70,7 @@ export function defaultDeps(): EngineDeps {
     defaults = {
       db,
       paypal: {
+        createOrder: ordersApi.createOrder,
         getOrder: ordersApi.getOrder,
         authorizeOrder: ordersApi.authorizeOrder,
         capture: paymentsApi.capture,
@@ -69,9 +80,15 @@ export function defaultDeps(): EngineDeps {
       },
       now: () => new Date(),
       timeScale: serverEnv().DEMO_TIME_SCALE,
+      maxDealUsd: serverEnv().MAX_DEAL_USD,
     };
   }
   return defaults;
+}
+
+/** Test hook: replace the default dependencies used by routes (undefined restores them). */
+export function setEngineDeps(deps: EngineDeps | undefined): void {
+  defaults = deps;
 }
 
 export type EngineResult =
@@ -126,6 +143,11 @@ async function snapshot(tx: Tx, deal: Deal): Promise<DealSnapshot> {
     .from(evidence)
     .where(and(eq(evidence.dealId, deal.id), eq(evidence.type, "tracking")))
     .limit(1);
+  const [review] = await tx
+    .select({ kind: reviews.kind })
+    .from(reviews)
+    .where(and(eq(reviews.dealId, deal.id), isNull(reviews.decision)))
+    .limit(1);
   return {
     state: deal.state,
     shipBy: deal.shipBy,
@@ -135,6 +157,7 @@ async function snapshot(tx: Tx, deal: Deal): Promise<DealSnapshot> {
     authorizedAt: deal.authorizedAt,
     authExpiresAt: deal.authExpiresAt,
     hasTracking: Boolean(tracking),
+    openReview: review?.kind ?? null,
     currentTermsHash: terms?.hash ?? null,
     confirmedHashes: { buyer: hashFor("buyer"), seller: hashFor("seller") },
   };
@@ -170,27 +193,52 @@ async function runPaypalStep(ctx: Ctx, step: PaypalStep): Promise<StepResult> {
   if (step === "authorize") {
     const requestId = paypalRequestId(deal.id, "authorize", deal.paymentAttempt);
     const res = await deps.paypal.authorizeOrder(payment.paypalOrderId, requestId, deal.id);
-    if (!res.ok) {
-      await tx
-        .update(payments)
-        .set({ status: `AUTHORIZE_FAILED:${res.issue}`.slice(0, 120), updatedAt: now })
-        .where(eq(payments.id, payment.id));
-      return failure(res);
+    let auth: ordersApi.Authorization | undefined = res.ok ? res.value : undefined;
+    let reconciled = false;
+    if (!res.ok && !res.retryable) {
+      // E.g. ORDER_ALREADY_AUTHORIZED: an earlier attempt worked but its reply was lost, or PayPal
+      // forgot the request id (it keeps them for about 6 hours). Use the authorisation it holds.
+      const order = await deps.paypal.getOrder(payment.paypalOrderId, deal.id);
+      const held = order.ok
+        ? order.value.purchase_units?.[0]?.payments?.authorizations?.[0]
+        : undefined;
+      if (held && held.status === "CREATED") {
+        auth = {
+          id: held.id,
+          status: held.status,
+          expiresAt: held.expiration_time ? new Date(held.expiration_time) : null,
+        };
+        reconciled = true;
+      }
+    }
+    if (!auth) {
+      if (!res.ok && !res.retryable) {
+        await tx
+          .update(payments)
+          .set({ status: `AUTHORIZE_FAILED:${res.issue}`.slice(0, 120), updatedAt: now })
+          .where(eq(payments.id, payment.id));
+      }
+      return failure(res as PaypalResult<never> & { ok: false });
     }
     await tx
       .update(payments)
-      .set({ authorizationId: res.value.id, status: res.value.status, updatedAt: now })
+      .set({ authorizationId: auth.id, status: auth.status, updatedAt: now })
       .where(eq(payments.id, payment.id));
     const defaultsAt = defaultDeadlines(now, { timeScale: deps.timeScale });
     return {
       ok: true,
       patch: {
         authorizedAt: now,
-        authExpiresAt: res.value.expiresAt,
+        authExpiresAt: auth.expiresAt,
         shipBy: deal.shipBy ?? defaultsAt.shipBy,
         deliverBy: deal.deliverBy ?? defaultsAt.deliverBy,
       },
-      info: { requestId, authorizationId: res.value.id, debugId: res.debugId },
+      info: {
+        requestId,
+        authorizationId: auth.id,
+        debugId: res.debugId,
+        ...(reconciled && { reconciled: true, issue: !res.ok ? res.issue : undefined }),
+      },
     };
   }
 
@@ -245,6 +293,35 @@ async function stepSent(tx: Tx, dealId: string, step: "capture" | "void"): Promi
   return Boolean(row);
 }
 
+/**
+ * A capture or void still waiting for PayPal's answer: the latest PayPal outcome logged for the
+ * deal is `paypal.pending`. Returns the step and how many tries have gone unanswered.
+ */
+async function pendingStep(tx: Tx, dealId: string) {
+  const rows = await tx
+    .select({ action: auditLog.action, details: auditLog.detailsJson })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.dealId, dealId),
+        inArray(auditLog.action, ["paypal.pending", "paypal.failed", "state.changed"]),
+      ),
+    )
+    .orderBy(desc(auditLog.id))
+    .limit(MAX_PENDING_TRIES + 1);
+  const stepOf = (r: (typeof rows)[number]) =>
+    (r.details as { paypal?: { step?: string } }).paypal?.step;
+  const first = rows[0];
+  const step = first?.action === "paypal.pending" ? stepOf(first) : undefined;
+  if (step !== "capture" && step !== "void") return null;
+  let tries = 0;
+  for (const r of rows) {
+    if (r.action !== "paypal.pending" || stepOf(r) !== step) break;
+    tries++;
+  }
+  return { step, tries } as const;
+}
+
 /** Turn PayPal's view of the authorisation into a reconciliation trigger, if it needs one. */
 async function authStatusTrigger(tx: Tx, dealId: string, status: string): Promise<Trigger | null> {
   if (status === "VOIDED" || status === "EXPIRED") {
@@ -268,14 +345,32 @@ async function syncPaymentStatus({ tx, deal, now }: Ctx, to: DealState) {
     .where(and(eq(payments.dealId, deal.id), eq(payments.attempt, deal.paymentAttempt)));
 }
 
-async function openReview(tx: Tx, dealId: string, reason: string, note?: string) {
+async function openReview(
+  tx: Tx,
+  dealId: string,
+  review: { kind: ReviewKind; reason: string; note?: string },
+) {
   const [open] = await tx
     .select({ id: reviews.id })
     .from(reviews)
     .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)))
     .limit(1);
-  if (!open) await tx.insert(reviews).values({ dealId, reason, note });
+  if (!open) await tx.insert(reviews).values({ dealId, ...review });
 }
+
+/** Close a review the deal left without an admin decision (e.g. a late buyer confirmation). */
+async function closeReview(tx: Tx, dealId: string, to: DealState, actor: string, now: Date) {
+  await tx
+    .update(reviews)
+    .set({
+      decision: to === "CAPTURED" ? "capture" : to === "VOIDED" ? "void" : "cleared",
+      decidedBy: actor,
+      decidedAt: now,
+    })
+    .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)));
+}
+
+const REVIEW_STATES: readonly DealState[] = ["IN_REVIEW", "CAPTURE_FAILED"];
 
 async function transition(
   deps: EngineDeps,
@@ -323,7 +418,8 @@ async function transition(
           .set({ ...patch, updatedAt: now })
           .where(eq(deals.id, dealId));
       }
-      if (trigger.type !== "SWEEP") await audit("trigger.accepted", base);
+      // Sweep runs every few minutes; logging every "nothing to do" would flood the audit log.
+      if (opts.actor !== "sweep") await audit("trigger.accepted", base);
       return { outcome: "unchanged", state: from, reason: decision.reason } as const;
     }
 
@@ -355,11 +451,15 @@ async function transition(
 
     if (!failedIssue) Object.assign(patch, (await opts.effects?.(ctx, to)) ?? {});
     // Deals that need a person (review, or a capture PayPal refused) get an open review.
-    if ((to === "IN_REVIEW" || to === "CAPTURE_FAILED") && from !== to) {
-      const why = failedIssue
-        ? `PayPal refused ${decision.paypal}: ${failedIssue}`
-        : decision.reason;
-      await openReview(tx, dealId, why, opts.reviewNote);
+    if (REVIEW_STATES.includes(to) && from !== to) {
+      await openReview(tx, dealId, {
+        kind: failedIssue ? "paypal" : (decision.review ?? "other"),
+        reason: failedIssue ? `PayPal refused ${decision.paypal}: ${failedIssue}` : decision.reason,
+        note: opts.reviewNote,
+      });
+    } else if (REVIEW_STATES.includes(from) && !REVIEW_STATES.includes(to)) {
+      // An admin decision has already closed its review; this closes the rest.
+      await closeReview(tx, dealId, to, opts.actor, now);
     }
     await tx
       .update(deals)
@@ -376,6 +476,96 @@ async function transition(
       return { outcome: "failed", from, to, reason: decision.reason, issue: failedIssue } as const;
     }
     return { outcome: "moved", from, to, reason: decision.reason } as const;
+  });
+}
+
+// ---- Payment set-up (no state change) ----------------------------------------------------------
+
+export type PreparePaymentResult = { ok: true; orderId: string } | { ok: false; reason: string };
+
+/** Order statuses that can still be approved and authorised. */
+const USABLE_ORDER = new Set(["CREATED", "SAVED", "PAYER_ACTION_REQUIRED", "APPROVED"]);
+
+/**
+ * Create (or reuse) the PayPal order for the deal's current payment attempt. Amount, currency,
+ * payee and description come from the locked terms on the deal row, never from the browser.
+ * A new attempt (request id `create-v<n+1>`) starts only after a failed authorisation or when the
+ * previous order can no longer be used.
+ */
+export async function preparePayment(
+  dealId: string,
+  deps = defaultDeps(),
+): Promise<PreparePaymentResult> {
+  return deps.db.transaction(async (tx) => {
+    const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).for("no key update");
+    if (!deal) return { ok: false, reason: "deal not found" };
+    if (deal.state !== "AGREED" && deal.state !== "FUNDING_FAILED") {
+      return { ok: false, reason: `payment is not possible in state ${deal.state}` };
+    }
+    if (!deal.amount || !deal.payeeEmail || !deal.confirmedTermsId) {
+      return { ok: false, reason: "the terms are not locked yet" };
+    }
+    // Checked at creation too; again here in case MAX_DEAL_USD was lowered since (section 5.1).
+    if (Number(deal.amount) > deps.maxDealUsd) {
+      return {
+        ok: false,
+        reason: `the deal amount is above the ${deps.maxDealUsd} USD limit per deal`,
+      };
+    }
+    const now = deps.now();
+    const audit = (action: string, details: Record<string, unknown>) =>
+      appendAudit(tx, { dealId, actor: "buyer", action, details }, now);
+
+    let attempt = deal.paymentAttempt;
+    const existing = await currentPayment(tx, deal);
+    if (existing) {
+      let usable = !existing.status.startsWith("AUTHORIZE_FAILED");
+      if (usable) {
+        const order = await deps.paypal.getOrder(existing.paypalOrderId, dealId);
+        usable = order.ok && USABLE_ORDER.has(order.value.status);
+        if (!order.ok && order.retryable) {
+          return { ok: false, reason: "PayPal is not answering; try again in a moment" };
+        }
+      }
+      if (usable) return { ok: true, orderId: existing.paypalOrderId };
+      attempt += 1;
+      await tx
+        .update(deals)
+        .set({ paymentAttempt: attempt, version: deal.version + 1, updatedAt: now })
+        .where(eq(deals.id, dealId));
+    }
+
+    const [terms] = await tx
+      .select({ json: dealTerms.termsJson })
+      .from(dealTerms)
+      .where(eq(dealTerms.id, deal.confirmedTermsId));
+    const item = dealTermsSchema.parse(terms.json).item;
+    const requestId = paypalRequestId(dealId, "create", attempt);
+    const res = await deps.paypal.createOrder(
+      {
+        dealId,
+        publicRef: deal.publicRef,
+        amount: deal.amount,
+        currency: "USD",
+        payeeEmail: deal.payeeEmail,
+        description: item,
+      },
+      requestId,
+    );
+    if (!res.ok) {
+      await audit("paypal.create_failed", { attempt, issue: res.issue, debugId: res.debugId });
+      return { ok: false, reason: `PayPal could not create the order (${res.issue})` };
+    }
+    await tx.insert(payments).values({
+      dealId,
+      paypalOrderId: res.value.id,
+      status: res.value.status,
+      amount: deal.amount,
+      currency: deal.currency,
+      attempt,
+    });
+    await audit("payment.order_created", { attempt, orderId: res.value.id, requestId });
+    return { ok: true, orderId: res.value.id };
   });
 }
 
@@ -498,13 +688,25 @@ export function onCourierDelivered(
       actor: "courier",
       details: { eventId: input.eventId },
       effects: async (_ctx, to) =>
-        to === "DELIVERED" ? { deliveredAt: input.deliveredAt } : undefined,
+        to === "DELIVERED"
+          ? { deliveredAt: input.deliveredAt, deliveryProof: "courier" as const }
+          : undefined,
     },
   );
 }
 
 export function onBuyerConfirmed(dealId: string, deps = defaultDeps()) {
-  return transition(deps, dealId, { type: "BUYER_CONFIRMED" }, { actor: "buyer" });
+  return transition(
+    deps,
+    dealId,
+    { type: "BUYER_CONFIRMED" },
+    {
+      actor: "buyer",
+      // The buyer's word is the proof unless a courier event or handover code came first.
+      effects: async ({ deal }, to) =>
+        to === "CAPTURED" && !deal.deliveryProof ? { deliveryProof: "buyer" as const } : undefined,
+    },
+  );
 }
 
 export function onBuyerProblem(dealId: string, note: string, deps = defaultDeps()) {
@@ -515,6 +717,14 @@ export function onBuyerProblem(dealId: string, note: string, deps = defaultDeps(
     {
       actor: "buyer",
       reviewNote: note.slice(0, 2000),
+      // A deal already in a deadline review keeps that review, now marked as a complaint.
+      effects: async ({ tx, deal }) => {
+        if (deal.state !== "IN_REVIEW") return;
+        await tx
+          .update(reviews)
+          .set({ kind: "buyer_problem", note: note.slice(0, 2000) })
+          .where(and(eq(reviews.dealId, dealId), isNull(reviews.decision)));
+      },
     },
   );
 }
@@ -570,8 +780,13 @@ export async function onSweep(deps = defaultDeps()) {
         const payment = await currentPayment(tx, deal);
         if (payment?.authorizationId) {
           const auth = await deps.paypal.getAuth(payment.authorizationId, id);
-          const reconcile = auth.ok && (await authStatusTrigger(tx, id, auth.value.status));
+          if (!auth.ok) return { type: "SWEEP" };
+          const reconcile = await authStatusTrigger(tx, id, auth.value.status);
           if (reconcile) return reconcile;
+          // PayPal still holds the money, so an unanswered capture or void did not happen and is
+          // safe to repeat with the same request id (even after PayPal has forgotten that id).
+          const pending = auth.value.status === "CREATED" ? await pendingStep(tx, id) : null;
+          if (pending) return { type: "RETRY_PENDING", ...pending };
         }
         return { type: "SWEEP" };
       },

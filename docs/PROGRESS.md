@@ -1,11 +1,11 @@
 # Progress
 
-_Last updated: 2026-10-21 (Nairobi)_
+_Last updated: 2026-10-22 (Nairobi)_
 
 ## Current phase
 
-**Phase 2: Foundation** — built on branch `phase-2-foundation`; all tests pass. Phase 2 report
-delivered; **waiting for Peter's review** of the PR and "Approved, start Phase 3".
+**Phase 3: Deal Room, payment flow and deployment** — built on branch `phase-3-deal-room`;
+**STOP FOR PETER**: deploy to Render, add the PayPal webhook, run Gate 2 (see "Next step").
 
 ## Done
 
@@ -62,14 +62,42 @@ return=representation`, returns status + `debug_id`). 5 unit tests with mocked `
   `onAdminDecision`, `onCancel`, `onSweep`, `onPaypalWebhook`.
 - `scripts/seed.ts` (`npm run db:seed`): demo deals A (A15, US$95) and B (AF1, US$40).
 - CI runs DB tests with a Postgres service. Results in `docs/TESTING.md`; decisions logged.
+- Review follow-up (Peter's answers): demo parties Shemaya and David (`deals.seller_name`,
+  `buyer_name`, migration `0002`); seller B in use; plan amendments written into BUILD_PLAN and
+  CLAUDE.md; sweep repeats unanswered captures/voids (same key, only while PayPal still holds the
+  money; review after 6 tries); authorise reconciles ORDER_ALREADY_AUTHORIZED.
+
+### Phase 3
+
+- Merged the Phase 2 follow-up commits that missed PR #3 (names, seller B, retries, amendments).
+- `lib/deals/service.ts`: create deal, propose terms (DRAFT only; buyer cannot change payee),
+  token check (constant time), Deal Room view (status line, timeline, deadlines, actions, history).
+- `lib/rules/engine.ts`: `preparePayment` (create or reuse the PayPal order; new attempt after a
+  failure), `setEngineDeps` test hook.
+- Routes: `POST /api/deals`, `GET /api/deals/[ref]`, `POST …/terms|confirm|cancel|order|authorize|
+evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /api/health`.
+- Pages: `/` (hand-entered deal form), `/deal/[ref]?t=` (Deal Room with v6 PayPal button).
+- `render.yaml` (web + Postgres + cron), `scripts/migrate.ts`, `scripts/cron-sweep.mjs`.
+
+### Plan update of 22 October (branch `phase-3a-plan-update`, on top of Phase 3)
+
+- `docs/BUILD_PLAN.md` replaced by Peter's 22 Oct plan, keeping the 21 Oct amendments.
+- Section 7.1 rules due by Phase 3: a late buyer confirmation or verified courier delivery after a
+  deliver-by or day-26 review still pays the seller; a complaint or PayPal problem still needs an
+  admin. Reviews have a `kind` and are closed when the deal leaves review.
+- `delivery_proof` recorded; ship-by void also requires no recorded delivery.
+- `MAX_DEAL_USD` checked again before any PayPal order is created.
+- Migration 0003: `delivery_proof`, handover columns, `extensions` table, `reviews.kind`
+  (handover and extension behaviour stay in Phase 5).
+- Deal Room: deadline-review status lines; buyer can confirm receipt or report a problem there.
 
 ## Blocked / waiting on Peter
 
-- Review and merge the PR for `phase-2-foundation`.
-- Choose names for the demo parties (seed uses placeholders).
-- Optional: a second sandbox Business account for seller B (B falls back to seller A).
+- Confirm the Render plans (paid web, Postgres and cron; see DECISIONS) before creating them.
+- Gate 2 steps in the Phase 3 report: Render Blueprint, environment values, PayPal webhook, then
+  one deal to CAPTURED and one to VOIDED on the Render URL.
 
 ## Next step
 
-Phase 3 (Deal Room, payment flow and deployment, 25–28 Oct): API routes, Deal Room page with the
-v6 button wired to `onBuyerApproved`, Render deployment. Starts after "Approved, start Phase 3".
+Peter runs Gate 2 and pastes the results. Then Claude checks the webhook rows and audit log,
+writes the Phase 3 report's final evidence, and Phase 4 (AI extraction) starts after approval.

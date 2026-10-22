@@ -13,7 +13,12 @@ export default defineConfig({
     globalSetup: ["./tests/db-setup.ts"],
     fileParallelism: false,
     env: {
-      DATABASE_URL: "postgres://unused",
+      // Routes use getDb(), so point it at the test database too.
+      DATABASE_URL:
+        process.env.TEST_DATABASE_URL ??
+        "postgres://safedeal:safedeal@localhost:5433/safedeal_test",
+      CRON_SECRET: "test-cron-secret",
+      APP_BASE_URL: "http://localhost:3000",
       PAYPAL_CLIENT_ID: "test-id",
       PAYPAL_CLIENT_SECRET: "test-secret",
     },

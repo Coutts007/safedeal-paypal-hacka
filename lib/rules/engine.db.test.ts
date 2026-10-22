@@ -15,6 +15,7 @@ import {
   onSweep,
   onTermsConfirmed,
   onTrackingSubmitted,
+  preparePayment,
 } from "./engine";
 
 const H = 3_600_000;
@@ -310,6 +311,88 @@ describe("reconciliation (a reply from PayPal was lost)", () => {
   });
 });
 
+describe("unanswered PayPal calls (risk follow-up)", () => {
+  it("the sweep repeats an unanswered capture with the same request id", async () => {
+    const { deal, fake, deps } = await authorizedDeal();
+    fake.port.capture.mockResolvedValueOnce(paypalError(null, "PayPal unreachable", true));
+    expect(await onBuyerConfirmed(deal.id, deps)).toMatchObject({ outcome: "pending" });
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("CAPTURED");
+    expect(fake.port.capture.mock.calls.map((c) => c[1])).toEqual([
+      `deal-${deal.id}-capture-v1`,
+      `deal-${deal.id}-capture-v1`,
+    ]);
+  });
+
+  it("hands a void to an admin after 6 unanswered tries, then stops calling PayPal", async () => {
+    const { deal, fake, deps, advance } = await authorizedDeal();
+    advance(48 * H);
+    fake.port.voidAuth.mockResolvedValue(paypalError(503, "SERVICE_UNAVAILABLE", true));
+    for (let i = 0; i < 6; i++) await onSweep(deps);
+    expect(fake.port.voidAuth).toHaveBeenCalledTimes(6);
+    expect((await getDeal(deal.id)).state).toBe("AUTHORIZED");
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("IN_REVIEW");
+    const audits = async () =>
+      (await db.select().from(auditLog).where(eq(auditLog.dealId, deal.id))).length;
+    const before = await audits();
+    await onSweep(deps);
+    await onSweep(deps);
+    expect(fake.port.voidAuth).toHaveBeenCalledTimes(6);
+    expect(await audits()).toBe(before);
+    const [review] = await db.select().from(reviews).where(eq(reviews.dealId, deal.id));
+    expect(review.reason).toContain("did not answer the void after 6 tries");
+  });
+
+  it("an authorisation refused as already done is taken from the order", async () => {
+    const { deal, fake, deps, orderId } = await agreedDeal();
+    fake.port.authorizeOrder.mockResolvedValueOnce(paypalError(422, "ORDER_ALREADY_AUTHORIZED"));
+    fake.port.getOrder
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        debugId: "dbg",
+        value: {
+          id: orderId,
+          status: "APPROVED",
+          purchase_units: [
+            { custom_id: deal.id, amount: { currency_code: "USD", value: "95.00" } },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        debugId: "dbg",
+        value: {
+          id: orderId,
+          status: "COMPLETED",
+          purchase_units: [
+            {
+              custom_id: deal.id,
+              payments: {
+                authorizations: [
+                  {
+                    id: "AUTH-EARLIER",
+                    status: "CREATED",
+                    expiration_time: "2026-11-30T09:00:00Z",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+    expect(await onBuyerApproved(deal.id, orderId, deps)).toMatchObject({
+      outcome: "moved",
+      to: "AUTHORIZED",
+    });
+    const [p] = await db.select().from(payments).where(eq(payments.dealId, deal.id));
+    expect(p.authorizationId).toBe("AUTH-EARLIER");
+    expect((await getDeal(deal.id)).authExpiresAt).toEqual(new Date("2026-11-30T09:00:00Z"));
+  });
+});
+
 describe("review", () => {
   it("buyer problem opens a review with the note; admin void closes it", async () => {
     const { deal, deps } = await authorizedDeal();
@@ -324,7 +407,93 @@ describe("review", () => {
       ),
     ).toMatchObject({ outcome: "moved", to: "VOIDED" });
     const [review] = await db.select().from(reviews).where(eq(reviews.dealId, deal.id));
-    expect(review).toMatchObject({ reason: "buyer reported a problem", decision: "void" });
+    expect(review).toMatchObject({
+      kind: "buyer_problem",
+      reason: "buyer reported a problem",
+      decision: "void",
+    });
+  });
+});
+
+// Section 7.1 money safety rules, end to end through the engine and database.
+describe("money safety (section 7.1)", () => {
+  async function pastDeliverBy() {
+    const ctx = await authorizedDeal();
+    await onTrackingSubmitted(ctx.deal.id, { carrier: "G4S", trackingNumber: "T" }, ctx.deps);
+    ctx.advance(7 * 24 * H);
+    await onSweep(ctx.deps);
+    return ctx;
+  }
+  const openReviews = (dealId: string) =>
+    db.select().from(reviews).where(eq(reviews.dealId, dealId));
+
+  it("deliver_by passed, then a late buyer confirmation: IN_REVIEW then CAPTURED", async () => {
+    const { deal, fake, deps } = await pastDeliverBy();
+    expect((await getDeal(deal.id)).state).toBe("IN_REVIEW");
+    expect(await openReviews(deal.id)).toMatchObject([{ kind: "deliver_by", decision: null }]);
+
+    expect(await onBuyerConfirmed(deal.id, deps)).toMatchObject({ to: "CAPTURED" });
+    expect(fake.port.capture).toHaveBeenCalledTimes(1);
+    expect(await getDeal(deal.id)).toMatchObject({ deliveryProof: "buyer" });
+    expect(await openReviews(deal.id)).toMatchObject([{ decision: "capture", decidedBy: "buyer" }]);
+  });
+
+  it("deliver_by passed, then a verified courier delivery: inspection window, then paid", async () => {
+    const { deal, fake, deps, advance } = await pastDeliverBy();
+    const deliveredAt = deps.now();
+    expect(
+      await onCourierDelivered(deal.id, { verified: true, deliveredAt, eventId: "late" }, deps),
+    ).toMatchObject({ to: "DELIVERED" });
+    expect(await getDeal(deal.id)).toMatchObject({ deliveryProof: "courier", deliveredAt });
+    expect(await openReviews(deal.id)).toMatchObject([{ decision: "cleared" }]);
+
+    advance(48 * H);
+    await onSweep(deps);
+    expect((await getDeal(deal.id)).state).toBe("CAPTURED");
+    expect(fake.port.capture).toHaveBeenCalledTimes(1);
+  });
+
+  it("a complaint during a deliver_by review blocks clearing it by a late delivery", async () => {
+    const { deal, fake, deps } = await pastDeliverBy();
+    expect(await onBuyerProblem(deal.id, "never arrived", deps)).toMatchObject({
+      outcome: "unchanged",
+    });
+    expect(await openReviews(deal.id)).toMatchObject([
+      { kind: "buyer_problem", note: "never arrived", decision: null },
+    ]);
+    const deliveredAt = deps.now();
+    expect(
+      await onCourierDelivered(deal.id, { verified: true, deliveredAt, eventId: "x" }, deps),
+    ).toMatchObject({ outcome: "unchanged" });
+    expect(await onBuyerConfirmed(deal.id, deps)).toMatchObject({ outcome: "rejected" });
+    expect((await getDeal(deal.id)).state).toBe("IN_REVIEW");
+    expect(fake.port.capture).not.toHaveBeenCalled();
+  });
+
+  it("the buyer staying silent after a verified delivery does not block payment", async () => {
+    const { deal, fake, deps, advance } = await authorizedDeal();
+    await onTrackingSubmitted(deal.id, { carrier: "G4S", trackingNumber: "T" }, deps);
+    await onCourierDelivered(
+      deal.id,
+      { verified: true, deliveredAt: deps.now(), eventId: "d" },
+      deps,
+    );
+    advance(48 * H);
+    await onSweep(deps);
+    expect(await getDeal(deal.id)).toMatchObject({ state: "CAPTURED", deliveryProof: "courier" });
+    expect(fake.port.capture).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("payment set-up", () => {
+  it("refuses to create a PayPal order above MAX_DEAL_USD, even for an agreed deal", async () => {
+    const { deal, fake, deps } = await agreedDeal();
+    await db.delete(payments).where(eq(payments.dealId, deal.id));
+    expect(await preparePayment(deal.id, { ...deps, maxDealUsd: 50 })).toEqual({
+      ok: false,
+      reason: "the deal amount is above the 50 USD limit per deal",
+    });
+    expect(fake.port.createOrder).not.toHaveBeenCalled();
   });
 });
 

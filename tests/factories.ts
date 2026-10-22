@@ -59,7 +59,11 @@ export const paypalError = (status: number | null, issue: string, retryable = fa
 /** A fake PayPal that behaves like the sandbox did in the Phase 1 spike. */
 export function fakePaypal() {
   const authStatus = new Map<string, string>();
+  let orders = 0;
   const port = {
+    createOrder: vi.fn<PaypalPort["createOrder"]>(async (src) =>
+      ok({ id: `O${src.publicRef}N${++orders}`, status: "PAYER_ACTION_REQUIRED" }, 201),
+    ),
     getOrder: vi.fn<PaypalPort["getOrder"]>(async (orderId, dealId) =>
       ok({
         id: orderId,
@@ -99,6 +103,12 @@ export function fakePaypal() {
 
 export function testDeps(db: Db, paypal: PaypalPort, start: Date) {
   const clock = { now: new Date(start) };
-  const deps: EngineDeps = { db, paypal, now: () => new Date(clock.now), timeScale: 1 };
+  const deps: EngineDeps = {
+    db,
+    paypal,
+    now: () => new Date(clock.now),
+    timeScale: 1,
+    maxDealUsd: 500,
+  };
   return { deps, clock, advance: (ms: number) => (clock.now = new Date(clock.now.getTime() + ms)) };
 }

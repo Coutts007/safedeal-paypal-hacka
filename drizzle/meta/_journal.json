@@ -15,6 +15,20 @@
       "when": 1792584837852,
       "tag": "0001_audit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792587011763,
+      "tag": "0002_party_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792661394588,
+      "tag": "0003_plan_oct22",
+      "breakpoints": true
     }
   ]
 }

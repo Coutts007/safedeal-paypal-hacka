@@ -23,8 +23,10 @@ Full brief: `docs/BUILD_PLAN.md`. Current status: `docs/PROGRESS.md`. Decisions:
    them. They can only fill fields in a schema; instruction-like text is flagged, not obeyed.
 6. **Secrets live only in `.env` (git-ignored) and in Render's environment settings.** Never print,
    log, commit or put secrets in test fixtures. Sandbox keys only.
-7. **State changes run in a database transaction with a row lock** (`SELECT … FOR UPDATE`) on the
-   deal, so two triggers at the same moment cannot both capture.
+7. **State changes run in a database transaction with a row lock** (`SELECT … FOR NO KEY UPDATE`)
+   on the deal, so two triggers at the same moment cannot both capture. (Not plain `FOR UPDATE`: it
+   would deadlock with the PayPal call log, which references the deal and is written on another
+   connection while the lock is held.)
 8. **Do not rely on reauthorisation.** Deadlines must fit inside the first authorisation.
 9. **Price in USD.** PayPal does not support KES. Show a KES estimate for reference only.
 10. **Never claim something works unless you ran it.** If a step needs Peter's browser or account,

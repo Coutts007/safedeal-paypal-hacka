@@ -26,6 +26,7 @@ function deal(patch: Partial<DealSnapshot> = {}): DealSnapshot {
     authorizedAt: T0,
     authExpiresAt: new Date(T0.getTime() + 29 * D),
     hasTracking: false,
+    openReview: null,
     currentTermsHash: "h1",
     confirmedHashes: { buyer: null, seller: null },
     ...patch,
@@ -102,6 +103,9 @@ describe("AUTHORIZED → VOIDED (sweep: ship_by passed, no tracking)", () => {
   it("does nothing before ship_by", () => {
     expect(run(deal(), { type: "SWEEP" }, at(47 * H))).toEqual(stayed);
   });
+  it("never voids after a verified delivery (e.g. a handover code)", () => {
+    expect(run(deal({ deliveredAt: at(H) }), { type: "SWEEP" }, at(48 * H))).toEqual(stayed);
+  });
 });
 
 describe("SHIPPED → DELIVERED (verified courier event)", () => {
@@ -115,10 +119,61 @@ describe("SHIPPED → DELIVERED (verified courier event)", () => {
       rejected,
     );
   });
-  it("records but does not move a deal under review", () => {
-    expect(
-      run(deal({ state: "IN_REVIEW" }), { type: "COURIER_DELIVERED", verified: true }),
-    ).toEqual(stayed);
+  it("records but does not move a deal under review for a complaint or a PayPal problem", () => {
+    for (const openReview of ["buyer_problem", "paypal", "other"] as const) {
+      expect(
+        run(deal({ state: "IN_REVIEW", openReview }), {
+          type: "COURIER_DELIVERED",
+          verified: true,
+        }),
+      ).toEqual(stayed);
+    }
+  });
+});
+
+// Section 7.1: a deadline review keeps the money held, but late proof of delivery still pays.
+describe("IN_REVIEW (deadline) → DELIVERED or CAPTURED (late proof of delivery)", () => {
+  it.each(["deliver_by", "day_26"] as const)(
+    "a verified courier delivery after a %s review starts the inspection window",
+    (openReview) => {
+      const d = deal({ state: "IN_REVIEW", hasTracking: true, openReview });
+      expect(run(d, { type: "COURIER_DELIVERED", verified: true }, at(8 * D))).toEqual(
+        moved("DELIVERED"),
+      );
+    },
+  );
+  it("an unverified courier event still counts for nothing", () => {
+    const d = deal({ state: "IN_REVIEW", openReview: "deliver_by" });
+    expect(run(d, { type: "COURIER_DELIVERED", verified: false })).toEqual(rejected);
+  });
+  it("a deal already delivered does not restart its inspection window", () => {
+    const d = deal({ state: "IN_REVIEW", openReview: "day_26", deliveredAt: at(3 * D) });
+    expect(run(d, { type: "COURIER_DELIVERED", verified: true }, at(26 * D))).toEqual(stayed);
+  });
+  it.each(["deliver_by", "day_26"] as const)(
+    "a late buyer confirmation after a %s review captures",
+    (openReview) => {
+      const d = deal({ state: "IN_REVIEW", hasTracking: true, openReview });
+      expect(run(d, { type: "BUYER_CONFIRMED" }, at(8 * D))).toEqual(
+        moved("CAPTURED", { paypal: "capture", onFailure: "CAPTURE_FAILED" }),
+      );
+    },
+  );
+  it("a late buyer confirmation past the hard limit is rejected", () => {
+    const d = deal({ state: "IN_REVIEW", openReview: "day_26" });
+    expect(run(d, { type: "BUYER_CONFIRMED" }, at(29 * D))).toEqual(rejected);
+  });
+  it.each(["buyer_problem", "paypal", "other"] as const)(
+    "a buyer confirmation cannot clear a %s review",
+    (openReview) => {
+      expect(run(deal({ state: "IN_REVIEW", openReview }), { type: "BUYER_CONFIRMED" })).toEqual(
+        rejected,
+      );
+    },
+  );
+  it("a buyer problem during a deadline review stays in review", () => {
+    const d = deal({ state: "IN_REVIEW", openReview: "deliver_by" });
+    expect(run(d, { type: "BUYER_PROBLEM" })).toEqual(stayed);
   });
 });
 
@@ -163,7 +218,9 @@ describe("DELIVERED → CAPTURED (sweep: inspection window ended)", () => {
 
 describe("SHIPPED, DELIVERED → IN_REVIEW (buyer reports a problem)", () => {
   it("moves from SHIPPED", () => {
-    expect(run(deal({ state: "SHIPPED" }), { type: "BUYER_PROBLEM" })).toEqual(moved("IN_REVIEW"));
+    expect(run(deal({ state: "SHIPPED" }), { type: "BUYER_PROBLEM" })).toEqual(
+      moved("IN_REVIEW", { review: "buyer_problem" }),
+    );
   });
   it("moves from DELIVERED inside the window", () => {
     const d = deal({ state: "DELIVERED", deliveredAt: at(3 * D) });
@@ -180,8 +237,10 @@ describe("SHIPPED, DELIVERED → IN_REVIEW (buyer reports a problem)", () => {
 
 describe("SHIPPED → IN_REVIEW (sweep: deliver_by passed)", () => {
   const shipped = deal({ state: "SHIPPED", hasTracking: true });
-  it("moves at deliver_by with no delivered event", () => {
-    expect(run(shipped, { type: "SWEEP" }, at(7 * D))).toEqual(moved("IN_REVIEW"));
+  it("moves at deliver_by with no delivered event, as a deliver_by review", () => {
+    expect(run(shipped, { type: "SWEEP" }, at(7 * D))).toEqual(
+      moved("IN_REVIEW", { review: "deliver_by" }),
+    );
   });
   it("waits before deliver_by", () => {
     expect(run(shipped, { type: "SWEEP" }, at(7 * D - 1))).toEqual(stayed);
@@ -192,7 +251,7 @@ describe("held state → IN_REVIEW (sweep: day 26)", () => {
   it("moves a shipped deal that has a delivered_by far in the future", () => {
     const d = deal({ state: "SHIPPED", hasTracking: true, deliverBy: at(28 * D) });
     expect(run(d, { type: "SWEEP" }, at(26 * D))).toEqual(
-      moved("IN_REVIEW", { reason: expect.stringContaining("day 26") }),
+      moved("IN_REVIEW", { reason: expect.stringContaining("day 26"), review: "day_26" }),
     );
   });
   it("moves an authorised deal whose ship_by is later than day 26", () => {
@@ -266,6 +325,37 @@ describe("held state → CAPTURED or IN_REVIEW (reconciliation: PayPal reports a
     expect(run(deal({ state: "CAPTURED" }), { type: "AUTH_CAPTURED", capturedByUs: true })).toEqual(
       stayed,
     );
+  });
+});
+
+describe("held state: repeat an unanswered capture or void (sweep)", () => {
+  it("repeats a capture while the authorisation is valid", () => {
+    expect(run(deal(), { type: "RETRY_PENDING", step: "capture", tries: 1 })).toEqual(
+      moved("CAPTURED", { paypal: "capture", onFailure: "CAPTURE_FAILED" }),
+    );
+  });
+  it("repeats a void", () => {
+    expect(run(deal(), { type: "RETRY_PENDING", step: "void", tries: 2 })).toEqual(
+      moved("VOIDED", { paypal: "void", onFailure: "IN_REVIEW" }),
+    );
+  });
+  it("hands over to an admin after 6 unanswered tries, then waits", () => {
+    expect(run(deal(), { type: "RETRY_PENDING", step: "capture", tries: 6 })).toEqual(
+      moved("IN_REVIEW"),
+    );
+    expect(
+      run(deal({ state: "IN_REVIEW" }), { type: "RETRY_PENDING", step: "void", tries: 6 }),
+    ).toEqual(stayed);
+  });
+  it("sends a capture to review instead of repeating it past the hard limit", () => {
+    const d = run(deal(), { type: "RETRY_PENDING", step: "capture", tries: 1 }, at(29 * D));
+    expect(d).toEqual(moved("IN_REVIEW"));
+    expect(d.kind === "move" && d.paypal).toBeFalsy();
+  });
+  it("does nothing once settled", () => {
+    expect(
+      run(deal({ state: "CAPTURED" }), { type: "RETRY_PENDING", step: "capture", tries: 1 }),
+    ).toEqual(stayed);
   });
 });
 
@@ -343,6 +433,7 @@ describe("coverage of states", () => {
       { type: "ADMIN_DECISION", decision: "void", reason: "r" },
       { type: "AUTH_ENDED", voidedByUs: false },
       { type: "AUTH_CAPTURED", capturedByUs: false },
+      { type: "RETRY_PENDING", step: "capture", tries: 0 },
       { type: "DISPUTE_CREATED", verified: true },
       { type: "DISPUTE_RESOLVED", verified: true },
       { type: "CANCEL" },

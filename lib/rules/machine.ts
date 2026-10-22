@@ -1,4 +1,4 @@
-import type { DealState } from "@/lib/db/schema";
+import type { DealState, ReviewKind } from "@/lib/db/schema";
 
 // The deal state machine from docs/BUILD_PLAN.md section 7, as a pure function with no I/O, so every
 // transition is unit-tested. lib/rules/engine.ts applies its decisions inside a locked transaction.
@@ -14,6 +14,9 @@ export const DEFAULTS = {
   adminReviewAfterMs: 26 * DAY,
   hardLimitAfterMs: 29 * DAY,
 } as const;
+
+/** Unanswered PayPal calls the sweep repeats (same request id) before handing over to an admin. */
+export const MAX_PENDING_TRIES = 6;
 
 /** States in which PayPal is holding the buyer's money. */
 export const HELD_STATES: readonly DealState[] = [
@@ -33,6 +36,8 @@ export type DealSnapshot = {
   authorizedAt: Date | null;
   authExpiresAt: Date | null;
   hasTracking: boolean;
+  /** Why the deal is in review (kind of the open review), or null when no review is open. */
+  openReview: ReviewKind | null;
   /** Hash of the latest terms version. */
   currentTermsHash: string | null;
   /** Hash each party confirmed most recently (null if none). */
@@ -52,6 +57,8 @@ export type Trigger =
   | { type: "AUTH_ENDED"; voidedByUs: boolean }
   /** PayPal reports the authorisation captured. `capturedByUs`: we had sent a capture. */
   | { type: "AUTH_CAPTURED"; capturedByUs: boolean }
+  /** A capture or void we sent got no answer and PayPal still holds the money; `tries` so far. */
+  | { type: "RETRY_PENDING"; step: "capture" | "void"; tries: number }
   | { type: "DISPUTE_CREATED"; verified: boolean }
   | { type: "DISPUTE_RESOLVED"; verified: boolean }
   | { type: "CANCEL" };
@@ -60,7 +67,15 @@ export type PaypalStep = "authorize" | "capture" | "void";
 
 export type Decision =
   /** Move to `to`. With `paypal`, only after that call succeeds; on a final failure go to `onFailure`. */
-  | { kind: "move"; to: DealState; paypal?: PaypalStep; onFailure?: DealState; reason: string }
+  | {
+      kind: "move";
+      to: DealState;
+      paypal?: PaypalStep;
+      onFailure?: DealState;
+      reason: string;
+      /** Kind of the review opened when this move enters IN_REVIEW. */
+      review?: ReviewKind;
+    }
   /** Allowed, but nothing changes (e.g. a sweep before any deadline). */
   | { kind: "stay"; reason: string }
   /** Not allowed in this state or the guard failed. */
@@ -94,6 +109,16 @@ export function defaultDeadlines(authorizedAt: Date, t: Timing) {
   };
 }
 
+/**
+ * Reviews opened only because a deadline passed. A late buyer confirmation or verified delivery
+ * still settles these (section 7.1); a complaint or a PayPal problem always needs an admin.
+ */
+export const DEADLINE_REVIEWS: readonly ReviewKind[] = ["deliver_by", "day_26"];
+
+/** In review only because a deadline passed, so late proof of delivery still counts. */
+export const isDeadlineReview = (d: DealSnapshot) =>
+  d.state === "IN_REVIEW" && d.openReview !== null && DEADLINE_REVIEWS.includes(d.openReview);
+
 const reject = (reason: string): Decision => ({ kind: "reject", reason });
 const stay = (reason: string): Decision => ({ kind: "stay", reason });
 const notIn = (d: DealSnapshot, what: string) =>
@@ -109,7 +134,9 @@ function sweep(d: DealSnapshot, now: Date, t: Timing): Decision {
   const review = reviewAt(d, t);
   switch (d.state) {
     case "AUTHORIZED":
-      if (!d.hasTracking && d.shipBy && now >= d.shipBy) {
+      // A correct handover code moves the deal to DELIVERED, so here "no handover" means no
+      // delivered_at; checked anyway so a void can never follow a verified delivery.
+      if (!d.hasTracking && !d.deliveredAt && d.shipBy && now >= d.shipBy) {
         return {
           kind: "move",
           to: "VOIDED",
@@ -125,6 +152,7 @@ function sweep(d: DealSnapshot, now: Date, t: Timing): Decision {
           kind: "move",
           to: "IN_REVIEW",
           reason: "deliver-by deadline passed without a delivered event",
+          review: "deliver_by",
         };
       }
       break;
@@ -144,6 +172,7 @@ function sweep(d: DealSnapshot, now: Date, t: Timing): Decision {
       kind: "move",
       to: "IN_REVIEW",
       reason: "day 26 of the authorisation without a decision",
+      review: "day_26",
     };
   }
   return stay("no deadline reached");
@@ -179,23 +208,47 @@ export function nextState(d: DealSnapshot, trigger: Trigger, now: Date, t: Timin
 
     case "COURIER_DELIVERED":
       if (!trigger.verified) return reject("the courier event is not verified");
+      // A late delivery after a deadline review still counts: the inspection window starts.
+      if (isDeadlineReview(d) && !d.deliveredAt) {
+        return {
+          kind: "move",
+          to: "DELIVERED",
+          reason: "verified courier delivery after a deadline review",
+        };
+      }
       if (d.state !== "SHIPPED") return stay(`delivery recorded; no change in state ${d.state}`);
       return { kind: "move", to: "DELIVERED", reason: "verified courier delivered event" };
 
     case "BUYER_CONFIRMED":
+      if (isDeadlineReview(d)) {
+        return captureIfValid(d, now, t, "buyer confirmed receipt after a deadline review");
+      }
       if (d.state !== "AUTHORIZED" && d.state !== "SHIPPED" && d.state !== "DELIVERED") {
         return notIn(d, "Confirming receipt");
       }
       return captureIfValid(d, now, t, "buyer confirmed receipt");
 
     case "BUYER_PROBLEM": {
+      // Already waiting for an admin because a deadline passed: the complaint joins that review,
+      // which can then no longer be cleared by a late delivery.
+      if (isDeadlineReview(d)) return stay("problem added to the open review");
       if (d.state === "SHIPPED") {
-        return { kind: "move", to: "IN_REVIEW", reason: "buyer reported a problem" };
+        return {
+          kind: "move",
+          to: "IN_REVIEW",
+          reason: "buyer reported a problem",
+          review: "buyer_problem",
+        };
       }
       if (d.state !== "DELIVERED") return notIn(d, "Reporting a problem");
       const end = inspectionEndsAt(d, t);
       if (end && now >= end) return reject("the inspection window has closed");
-      return { kind: "move", to: "IN_REVIEW", reason: "buyer reported a problem" };
+      return {
+        kind: "move",
+        to: "IN_REVIEW",
+        reason: "buyer reported a problem",
+        review: "buyer_problem",
+      };
     }
 
     case "SWEEP":
@@ -238,6 +291,38 @@ export function nextState(d: DealSnapshot, trigger: Trigger, now: Date, t: Timin
         kind: "move",
         to: "IN_REVIEW",
         reason: "PayPal reports a capture SafeDeal did not make",
+        review: "paypal",
+      };
+
+    case "RETRY_PENDING":
+      if (!HELD_STATES.includes(d.state)) return stay(`nothing to retry in state ${d.state}`);
+      if (trigger.tries >= MAX_PENDING_TRIES) {
+        if (d.state === "IN_REVIEW") return stay("waiting for an admin after unanswered retries");
+        return {
+          kind: "move",
+          to: "IN_REVIEW",
+          reason: `PayPal did not answer the ${trigger.step} after ${trigger.tries} tries`,
+          review: "paypal",
+        };
+      }
+      if (trigger.step === "capture") {
+        const limit = hardLimit(d, t);
+        if (!limit || now >= limit) {
+          return {
+            kind: "move",
+            to: "IN_REVIEW",
+            reason: "an unanswered capture can no longer be repeated: the authorisation is too old",
+            review: "paypal",
+          };
+        }
+        return captureIfValid(d, now, t, "repeating a capture PayPal did not answer");
+      }
+      return {
+        kind: "move",
+        to: "VOIDED",
+        paypal: "void",
+        onFailure: "IN_REVIEW",
+        reason: "repeating a void PayPal did not answer",
       };
 
     case "DISPUTE_CREATED":
