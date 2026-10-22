@@ -146,5 +146,25 @@ Postgres 16 service) on every push. Database tests create and migrate their own 
   badges, KES conversion note, injection warning, "From chat m2" opens the quoted message. A deal
   created through the API from a stored extraction shows the markers in the seller's Deal Room.
   No horizontal scroll, no console errors.
-- **Not run yet: `npm run eval` against Claude.** The account has no credit (HTTP 400 "credit
-  balance is too low"); the error is now written to the run log in full.
+- `npm run eval` against Claude (`claude-sonnet-5-5`, 43 chats: 40 English and mixed, 2 Swahili
+  and 1 Sheng examples), about US$0.75 per run. Results in `eval/results/`.
+
+  | Field           | extract-v1 F1 | extract-v2 P | extract-v2 R | extract-v2 F1 |
+  | --------------- | ------------- | ------------ | ------------ | ------------- |
+  | item            | 100%          | 100%         | 100%         | 100%          |
+  | quantity        | 100%          | 100%         | 100%         | 100%          |
+  | price           | 100%          | 100%         | 100%         | 100%          |
+  | delivery_method | 100%          | 100%         | 100%         | 100%          |
+  | carrier         | 100%          | 100%         | 100%         | 100%          |
+  | ship_by         | 97.0%         | 100%         | 100%         | 100%          |
+  | deliver_by      | 100%          | 100%         | 100%         | 100%          |
+  | conditions      | 82.3%         | 61.9%        | 96.8%        | 75.5%         |
+  | all fields      | 94.8%         | 84.8%        | 99.0%        | 91.4%         |
+
+  Both runs: 43/43 chats answered, injection flags correct on 43/43, median latency 3.5–4 s.
+  v1 put a same-day rider delivery date into ship_by (en-31), which would block payment later
+  that day, and left out stated specs (RAM, storage). v2 fixes both. v2's lower condition
+  precision is from the gold labels: they merge some facts ("Core i5, 8GB RAM, 256GB SSD") and
+  omit others stated in the chat ("43 inch", "138 litres"); every extra condition checked is in
+  the chat. The labels need one convention (Peter's review). Swahili and Sheng scores are from 3
+  example chats only.

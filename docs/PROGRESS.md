@@ -5,8 +5,8 @@ _Last updated: 2026-10-23 (Nairobi)_
 ## Current phase
 
 **Phase 4: AI extraction and deal card** — built on branch `phase-4-ai-extraction`;
-**STOP FOR PETER**: add Anthropic API credit, Swahili and Sheng chats, gold label review, three
-chats of his own (see "Next step").
+**STOP FOR PETER**: Swahili and Sheng chats, gold label review (one convention for
+conditions), three chats of his own (see "Next step").
 
 ## Done
 
@@ -113,17 +113,15 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 
 ## Blocked / waiting on Peter
 
-- **Anthropic API credit.** Every call returns "Your credit balance is too low" (HTTP 400), so
-  the live run of `npm run eval` has not happened yet. Add credit to the account behind
-  `LLM_API_KEY`, then Claude runs the eval and records the scores.
 - `LLM_API_KEY` set in Render's environment for the web service.
 - At least 10 Swahili and 10 Sheng chats in `eval/chats/` (see `eval/README.md`).
-- Review of the English gold labels, especially en-04, en-11, en-18, en-28, en-34, en-36, en-37.
+- Review of the English gold labels: one fact per condition, and whether specs stated in the
+  chat count as conditions (see TESTING, Phase 4 eval). Also check en-04, en-11, en-18, en-28, en-34, en-36, en-37.
 - Three of his own chats tried in the app.
 - Still open from earlier: the Phase 5 handover-code approach (see DECISIONS, 2026-10-22).
 
 ## Next step
 
-Peter adds API credit and says so. Claude runs `npm run eval` on all chats (about US$1), records
-the scores in TESTING.md and fixes prompt problems the run shows. After Peter's chats and label
-review, Claude runs the eval again with Swahili and Sheng scores, then Phase 5 after approval.
+Live eval done (prompt `extract-v2`: 91.4% F1 over all fields, 100% on every field except
+conditions). After Peter's Swahili and Sheng chats and label review, Claude runs the eval again
+and reports per-language scores; then Phase 5 after approval.
