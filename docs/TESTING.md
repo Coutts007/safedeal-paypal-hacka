@@ -2,17 +2,18 @@
 
 ## How to run
 
-| Kind                           | Command                                                    | Needs                              |
-| ------------------------------ | ---------------------------------------------------------- | ---------------------------------- |
-| Unit                           | `npm test`                                                 | nothing                            |
-| Database                       | `npm run test:db`                                          | `npm run db:up` (Docker Postgres)  |
-| Type check                     | `npm run typecheck`                                        | nothing                            |
-| Lint                           | `npm run lint`                                             | nothing                            |
-| End to end                     | `npx playwright install chromium` once, then `npm run e2e` | dev server (started automatically) |
-| Env / PayPal credentials check | `npx tsx scripts/check-env.ts`                             | `.env` with sandbox keys           |
-| Payment spike (Phase 1)        | `npm run spike`                                            | `.env`, sandbox buyer login        |
-| Sandbox integration            | `npm run test:sandbox`                                     | `.env`, network                    |
-| Demo data                      | `npm run db:seed` (add `-- --agreed`)                      | Postgres, `SANDBOX_SELLER_A_EMAIL` |
+| Kind                              | Command                                                    | Needs                              |
+| --------------------------------- | ---------------------------------------------------------- | ---------------------------------- |
+| Unit                              | `npm test`                                                 | nothing                            |
+| Database                          | `npm run test:db`                                          | `npm run db:up` (Docker Postgres)  |
+| Type check                        | `npm run typecheck`                                        | nothing                            |
+| Lint                              | `npm run lint`                                             | nothing                            |
+| End to end                        | `npx playwright install chromium` once, then `npm run e2e` | dev server (started automatically) |
+| Env / PayPal credentials check    | `npx tsx scripts/check-env.ts`                             | `.env` with sandbox keys           |
+| Payment spike (Phase 1)           | `npm run spike`                                            | `.env`, sandbox buyer login        |
+| Sandbox integration               | `npm run test:sandbox`                                     | `.env`, network                    |
+| AI eval (real model, costs money) | `npm run eval` (`-- --only en-03,en-19`, `-- --limit 5`)   | `.env` with `LLM_API_KEY`, network |
+| Demo data                         | `npm run db:seed` (add `-- --agreed`)                      | Postgres, `SANDBOX_SELLER_A_EMAIL` |
 
 CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests and database tests (with a
 Postgres 16 service) on every push. Database tests create and migrate their own database
@@ -124,3 +125,26 @@ Postgres 16 service) on every push. Database tests create and migrate their own 
   blocks a late delivery from clearing it; buyer silent after a verified delivery → CAPTURED; no
   PayPal order above `MAX_DEAL_USD`).
 - Migration 0003 applied to the development and test databases. Type check and lint clean.
+
+### Phase 4 (2026-10-23, local)
+
+- `npm test`: 154 passed (adds: redaction of Kenyan phone formats, emails, M-PESA codes and
+  Luhn-valid cards with stable tokens; WhatsApp iOS/Android parsing with continuation lines;
+  output validation (unknown message ids, bad amounts, dates without offset, ship after deliver);
+  instruction-like message detection; retry once then give up; refusal; API error; KES → USD
+  proposal; source refs and "changed by hand"; eval scoring; rate limits).
+- `npm run test:db`: 57 passed (adds, through the API with a fake model: chat → extraction stored
+  without the raw phone number → deal created with source refs and chat, shown in the Deal Room →
+  extraction cannot be used twice; over-long chat refused; past dates refused; 503 without a
+  model; payment refused after the agreed ship-by date). Not covered by a test: the 24-hour
+  extraction expiry and the 429 response (the sliding window itself has unit tests).
+- Migration 0004 applied to the development and test databases. `next build`, type check and lint
+  clean.
+- Headless Chromium at 360 px against `next start`: with the real API call failing (no credit),
+  "Read the chat" shows "The AI is not answering right now" and the empty form. With
+  `/api/extract` answered by a hand-written reply in the real format: pre-filled form, confidence
+  badges, KES conversion note, injection warning, "From chat m2" opens the quoted message. A deal
+  created through the API from a stored extraction shows the markers in the seller's Deal Room.
+  No horizontal scroll, no console errors.
+- **Not run yet: `npm run eval` against Claude.** The account has no credit (HTTP 400 "credit
+  balance is too low"); the error is now written to the run log in full.
