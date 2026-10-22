@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { DealView } from "@/lib/deals/service";
+import type { HintedField } from "@/lib/ai/proposal";
+import { ChatFlags, SourceChips } from "../../components/Sources";
 import TermsForm, { type TermsInput } from "../../components/TermsForm";
 import { Button, Card, Field, inputClass, kes, nairobi, Notice } from "../../components/ui";
 import PayButton from "./PayButton";
@@ -278,20 +280,45 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
 
       <Deadlines view={view} now={now} />
 
+      {terms && <ChatFlags flags={view.chatFlags} chat={view.chat} />}
+
       {terms && (
         <Card title={`Terms (version ${view.termsVersion})`}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             <dt className="text-neutral-500">Item</dt>
             <dd>
               {terms.quantity} × {terms.item}
+              {from(view, "item")}
             </dd>
             <dt className="text-neutral-500">Price</dt>
-            <dd>US${terms.price.amount}</dd>
-            <dt className="text-neutral-500">Delivery</dt>
-            <dd className="capitalize">
-              {terms.deliveryMethod}
-              {terms.carrier ? ` (${terms.carrier})` : ""}
+            <dd>
+              US${terms.price.amount}
+              {from(view, "price")}
             </dd>
+            <dt className="text-neutral-500">Delivery</dt>
+            <dd>
+              <span className="capitalize">{terms.deliveryMethod}</span>
+              {terms.carrier ? ` (${terms.carrier})` : ""}
+              {from(view, "deliveryMethod")}
+            </dd>
+            {terms.shipBy && (
+              <>
+                <dt className="text-neutral-500">Ship by</dt>
+                <dd>
+                  {nairobi(terms.shipBy)}
+                  {from(view, "shipBy")}
+                </dd>
+              </>
+            )}
+            {terms.deliverBy && (
+              <>
+                <dt className="text-neutral-500">Deliver by</dt>
+                <dd>
+                  {nairobi(terms.deliverBy)}
+                  {from(view, "deliverBy")}
+                </dd>
+              </>
+            )}
             <dt className="text-neutral-500">Inspection</dt>
             <dd>{terms.inspectionHours} h after delivery</dd>
             <dt className="text-neutral-500">Paid to</dt>
@@ -302,7 +329,13 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
                 <dd>
                   <ul className="list-disc pl-4">
                     {terms.conditions.map((c) => (
-                      <li key={c}>{c}</li>
+                      <li key={c}>
+                        {c}
+                        <SourceChips
+                          ids={view.sources.conditions?.find((x) => x.text === c)?.sources ?? []}
+                          chat={view.chat}
+                        />
+                      </li>
                     ))}
                   </ul>
                 </dd>
@@ -459,5 +492,19 @@ function ProblemForm({ busy, onSubmit }: { busy: boolean; onSubmit: (note: strin
         {busy ? "Sending…" : "Send to a reviewer"}
       </Button>
     </form>
+  );
+}
+
+/** "From the chat" marker for a deal-card field, when the deal started from a chat. */
+function from(view: DealView, field: HintedField) {
+  const ref = view.sources.fields?.[field];
+  if (!ref || !view.chat.length) return null;
+  return (
+    <SourceChips
+      ids={ref.sources}
+      chat={view.chat}
+      confidence={ref.confidence}
+      edited={ref.edited}
+    />
   );
 }

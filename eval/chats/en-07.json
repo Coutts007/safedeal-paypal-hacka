@@ -1,0 +1,18 @@
+{
+  "id": "en-07",
+  "language_mix": "mixed",
+  "chat_date": "2026-09-24",
+  "chat": "[24/09/2026, 16:30] Juma: Niaje boss, ile mountain bike ya Trinx bado iko?\n[24/09/2026, 16:33] Wekesa: Iko bro. 26-inch wheels, tyres mpya\n[24/09/2026, 16:34] Juma: Unauza how much?\n[24/09/2026, 16:35] Wekesa: 20k\n[24/09/2026, 16:37] Juma: Aki hiyo ni mob. Nikupee 17k?\n[24/09/2026, 16:40] Wekesa: Siwezi 17. Wacha tuseme 18,500 mwisho\n[24/09/2026, 16:41] Juma: Sawa, 18,500 poa\n[24/09/2026, 16:42] Juma: Unaweza tuma na boda? Niko Rongai\n[24/09/2026, 16:44] Wekesa: Ndio, boda itakuletea kesho\n[24/09/2026, 16:44] Juma: Fiti sana",
+  "gold": {
+    "item": "Trinx mountain bike 26-inch",
+    "quantity": 1,
+    "price": { "amount": "18500.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-25",
+    "conditions": ["26-inch wheels", "New tyres"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: mixed Swahili/English, negotiation 20k -> 18,500, boda delivery 'kesho' from Thu 24 Sep = 2026-09-25."
+}

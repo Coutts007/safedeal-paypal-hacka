@@ -24,9 +24,11 @@
     "check:env": "tsx scripts/check-env.ts",
     "spike": "tsx scripts/spike.ts",
     "dev:poll": "WATCHPACK_POLLING=true next dev",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
     "drizzle-orm": "^0.45.4",
     "next": "15.5.28",
     "pg": "^8.23.1",

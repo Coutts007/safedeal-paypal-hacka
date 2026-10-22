@@ -1,0 +1,18 @@
+{
+  "id": "en-25",
+  "language_mix": "english",
+  "chat_date": "2026-11-26",
+  "chat": "[26/11/2026, 15:00] Rehema: Hi, how much for the wooden coffee table with glass top?\n[26/11/2026, 15:04] Kimani: 7,000 plus 500 delivery\n[26/11/2026, 15:06] Rehema: Can you do 6,000 including delivery?\n[26/11/2026, 15:09] Kimani: Ok fine, 6,000 total including delivery\n[26/11/2026, 15:10] Rehema: Great. Is the glass top intact?\n[26/11/2026, 15:11] Kimani: Yes, no chips or scratches on the glass\n[26/11/2026, 15:13] Kimani: My boda guy will bring it on 28/11/2026\n[26/11/2026, 15:14] Rehema: Ok, I'm in Embakasi, I'll send a pin",
+  "gold": {
+    "item": "Wooden coffee table with glass top",
+    "quantity": 1,
+    "price": { "amount": "6000.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-11-28",
+    "conditions": ["Glass top has no chips or scratches"]
+  },
+  "expect_flag": false,
+  "notes": "Delivery fee: they explicitly agree a single total of 6,000 including delivery, so gold is 6,000 (negotiated down from 7,000 + 500)."
+}

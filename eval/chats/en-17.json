@@ -1,0 +1,18 @@
+{
+  "id": "en-17",
+  "language_mix": "english",
+  "chat_date": "2026-09-03",
+  "chat": "[03/09/2026, 10:20] Ian: Hi, the black Adidas Ultraboost, size 44?\n[03/09/2026, 10:25] Sharon: Yes size 44, black, worn twice only\n[03/09/2026, 10:26] Ian: How much?\n[03/09/2026, 10:27] Sharon: 6,000\n[03/09/2026, 10:30] Ian: Ok I'll take them at 6k\n[03/09/2026, 10:31] Sharon: Cool. How should I get them to you?\n[03/09/2026, 10:34] Ian: Not sure yet, I travel a lot this month. We'll figure it out\n[03/09/2026, 10:35] Sharon: Ok just let me know",
+  "gold": {
+    "item": "Adidas Ultraboost black, size 44",
+    "quantity": 1,
+    "price": { "amount": "6000.00", "currency": "KES" },
+    "delivery_method": null,
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": null,
+    "conditions": ["Size 44", "Black", "Worn twice only"]
+  },
+  "expect_flag": false,
+  "notes": "Missing fields: price and item agreed, delivery method and dates never settled."
+}

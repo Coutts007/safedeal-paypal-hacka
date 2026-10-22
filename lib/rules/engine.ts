@@ -523,6 +523,18 @@ export async function preparePayment(
     const now = deps.now();
     const audit = (action: string, details: Record<string, unknown>) =>
       appendAudit(tx, { dealId, actor: "buyer", action, details }, now);
+    // Dates agreed in the terms must still be ahead, or the deal would be voided at once.
+    for (const [label, at] of [
+      ["ship-by", deal.shipBy],
+      ["deliver-by", deal.deliverBy],
+    ] as const) {
+      if (at && at <= now) {
+        return {
+          ok: false,
+          reason: `the agreed ${label} date has passed; cancel this deal and agree new dates`,
+        };
+      }
+    }
 
     let attempt = deal.paymentAttempt;
     const existing = await currentPayment(tx, deal);

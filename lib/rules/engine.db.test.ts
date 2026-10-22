@@ -3,7 +3,14 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { verifyAuditChain } from "@/lib/audit";
 import { auditLog, deals, evidence, payments, reviews } from "@/lib/db/schema";
 import { resetDb, testDb } from "@/tests/db";
-import { addPayment, createDraftDeal, fakePaypal, paypalError, testDeps } from "@/tests/factories";
+import {
+  addPayment,
+  createDraftDeal,
+  fakePaypal,
+  paypalError,
+  TERMS_INPUT,
+  testDeps,
+} from "@/tests/factories";
 import {
   onAdminDecision,
   onBuyerApproved,
@@ -486,6 +493,23 @@ describe("money safety (section 7.1)", () => {
 });
 
 describe("payment set-up", () => {
+  it("refuses to create a PayPal order once an agreed ship-by date has passed", async () => {
+    const fake = fakePaypal();
+    const t = testDeps(db, fake.port, START);
+    const { deal, hash } = await createDraftDeal(db, {
+      ...TERMS_INPUT,
+      shipBy: new Date(START.getTime() + H).toISOString(),
+    });
+    await onTermsConfirmed(deal.id, { role: "seller", termsHash: hash }, t.deps);
+    await onTermsConfirmed(deal.id, { role: "buyer", termsHash: hash }, t.deps);
+    t.advance(2 * H);
+    expect(await preparePayment(deal.id, t.deps)).toEqual({
+      ok: false,
+      reason: "the agreed ship-by date has passed; cancel this deal and agree new dates",
+    });
+    expect(fake.port.createOrder).not.toHaveBeenCalled();
+  });
+
   it("refuses to create a PayPal order above MAX_DEAL_USD, even for an agreed deal", async () => {
     const { deal, fake, deps } = await agreedDeal();
     await db.delete(payments).where(eq(payments.dealId, deal.id));

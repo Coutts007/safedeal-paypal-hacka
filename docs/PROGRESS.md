@@ -1,11 +1,12 @@
 # Progress
 
-_Last updated: 2026-10-22 (Nairobi)_
+_Last updated: 2026-10-23 (Nairobi)_
 
 ## Current phase
 
-**Phase 3: Deal Room, payment flow and deployment** — built on branch `phase-3-deal-room`;
-**STOP FOR PETER**: deploy to Render, add the PayPal webhook, run Gate 2 (see "Next step").
+**Phase 4: AI extraction and deal card** — built on branch `phase-4-ai-extraction`;
+**STOP FOR PETER**: Swahili and Sheng chats, gold label review (one convention for
+conditions), three chats of his own (see "Next step").
 
 ## Done
 
@@ -91,12 +92,36 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
   (handover and extension behaviour stay in Phase 5).
 - Deal Room: deadline-review status lines; buyer can confirm receipt or report a problem there.
 
+### Phase 4
+
+- Gate 2 passed on Render (Peter, 2026-10-22).
+- `lib/ai/`: `redact.ts` (phones, emails, M-PESA codes, card numbers), `chat.ts` (WhatsApp iOS and
+  Android exports, message ids m1…), `schema.ts` (Zod extraction schema with sources and
+  confidence per field), `prompt.ts` (`extract-v1`), `extract.ts` (Claude call, one retry with the
+  validation problems, refusal handling), `validate.ts` (unknown message ids, amounts, dates,
+  instruction-like messages), `proposal.ts` (AI result → pre-filled form; KES → USD marked unsure),
+  `service.ts` (stores `ai_extractions` and `ai_runs`), `rate-limit.ts`, `eval-score.ts`.
+- Migration 0004: `ai_extractions`, `ai_runs`. A deal made from a chat keeps the redacted chat
+  (`chat_sources`) and per-field source refs; edits mark a field "changed by hand".
+- `POST /api/extract`; `POST /api/deals` takes an optional `extractionId` (once, within 24 h).
+- Create page: paste chat → "Read the chat" → pre-filled form with "AI: sure / check / unsure"
+  and "From chat m3" markers, a warning for instruction-like messages, and "fill in by hand".
+  Deal Room shows the same markers on the terms card.
+- Optional ship-by / deliver-by dates in the terms; payment refused once they have passed.
+- `eval/chats/`: 40 labelled English chats (KES, USD, relative dates, 4 injection attempts),
+  `TEMPLATE.json`, 2 Swahili and 1 Sheng example; `npm run eval` prints field-level P/R/F1.
+
 ## Blocked / waiting on Peter
 
-- Gate 2 on Render (free web and database; upgrade both by 9 November): Blueprint from `main`,
-  environment values, PayPal webhook, then one deal to CAPTURED and one to VOIDED.
+- `LLM_API_KEY` set in Render's environment for the web service.
+- At least 10 Swahili and 10 Sheng chats in `eval/chats/` (see `eval/README.md`).
+- Review of the English gold labels: one fact per condition, and whether specs stated in the
+  chat count as conditions (see TESTING, Phase 4 eval). Also check en-04, en-11, en-18, en-28, en-34, en-36, en-37.
+- Three of his own chats tried in the app.
+- Still open from earlier: the Phase 5 handover-code approach (see DECISIONS, 2026-10-22).
 
 ## Next step
 
-Peter runs Gate 2 and pastes the results. Then Claude checks the webhook rows and audit log,
-writes the Phase 3 report's final evidence, and Phase 4 (AI extraction) starts after approval.
+Live eval done (prompt `extract-v2`: 91.4% F1 over all fields, 100% on every field except
+conditions). After Peter's Swahili and Sheng chats and label review, Claude runs the eval again
+and reports per-language scores; then Phase 5 after approval.

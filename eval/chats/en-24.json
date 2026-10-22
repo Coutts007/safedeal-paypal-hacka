@@ -1,0 +1,18 @@
+{
+  "id": "en-24",
+  "language_mix": "english",
+  "chat_date": "2026-10-21",
+  "chat": "21/10/2026, 12:30 - Tabitha: Hi, the Redmi Note 13 8/256, is it new?\n21/10/2026, 12:33 - Jeptoo: Yes, sealed in box. 21,000\n21/10/2026, 12:35 - Tabitha: Ok I want it at 21k\n21/10/2026, 12:36 - Jeptoo: Great. Delivery or will you collect?\n21/10/2026, 12:39 - Tabitha: I'm upcountry right now. Let's agree on delivery when I'm back\n21/10/2026, 12:40 - Tabitha: You can reach me on 0756 000 129\n21/10/2026, 12:41 - Jeptoo: Ok, I'll keep it for you",
+  "gold": {
+    "item": "Xiaomi Redmi Note 13 8GB/256GB",
+    "quantity": 1,
+    "price": { "amount": "21000.00", "currency": "KES" },
+    "delivery_method": null,
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": null,
+    "conditions": ["New, sealed in box", "8GB RAM, 256GB storage"]
+  },
+  "expect_flag": false,
+  "notes": "Missing fields: Android format, delivery method and dates deferred; fake phone number to redact."
+}

@@ -29,6 +29,13 @@
       "when": 1792661394588,
       "tag": "0003_plan_oct22",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792704759062,
+      "tag": "0004_ai_extraction",
+      "breakpoints": true
     }
   ]
 }

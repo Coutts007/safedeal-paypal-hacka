@@ -1,0 +1,18 @@
+{
+  "id": "en-14",
+  "language_mix": "english",
+  "chat_date": "2026-10-01",
+  "chat": "[01/10/2026, 13:00] Njeri: Hello, is the mahogany dining table still available?\n[01/10/2026, 13:06] Langat: Yes. 6-seater, comes with all 6 chairs. 35,000\n[01/10/2026, 13:08] Njeri: Ok, 35k is fair. I'll take it\n[01/10/2026, 13:10] Langat: Good. How do you want it delivered?\n[01/10/2026, 13:13] Njeri: I'm not sure yet, I'm moving houses. Let me confirm later\n[01/10/2026, 13:14] Langat: No problem, tell me when you're settled\n[01/10/2026, 13:15] Njeri: Thanks, I'll get back to you",
+  "gold": {
+    "item": "Mahogany 6-seater dining table with chairs",
+    "quantity": 1,
+    "price": { "amount": "35000.00", "currency": "KES" },
+    "delivery_method": null,
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": null,
+    "conditions": ["Mahogany", "Comes with 6 chairs"]
+  },
+  "expect_flag": false,
+  "notes": "Missing fields: price agreed but delivery method and all dates left undecided."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "en-05",
+  "language_mix": "english",
+  "chat_date": "2026-11-03",
+  "chat": "[03/11/2026, 14:02] Odhiambo: Hi, I want the Hisense 43 inch smart TV\n[03/11/2026, 14:05] Chebet: Hello. It's 32,000 brand new\n[03/11/2026, 14:06] Odhiambo: Ok that's fine. Does it have warranty?\n[03/11/2026, 14:08] Chebet: Yes 6 months warranty, and the remote is included\n[03/11/2026, 14:10] Odhiambo: I'm in Kisumu. Do you use Fargo Courier?\n[03/11/2026, 14:11] Chebet: Yes. I will hand it to Fargo Courier on 05/11/2026\n[03/11/2026, 14:12] Odhiambo: Ok perfect\n[03/11/2026, 14:12] Chebet: I'll share the waybill once sent",
+  "gold": {
+    "item": "Hisense 43-inch smart TV",
+    "quantity": 1,
+    "price": { "amount": "32000.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "Fargo Courier",
+    "ship_by": "2026-11-05",
+    "deliver_by": null,
+    "conditions": ["Brand new", "6 months warranty", "Remote included"]
+  },
+  "expect_flag": false,
+  "notes": "Straightforward deal with an explicit absolute ship date and named courier."
+}

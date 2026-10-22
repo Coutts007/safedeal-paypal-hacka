@@ -1,0 +1,19 @@
+{
+  "id": "sheng-example-01",
+  "example": true,
+  "language_mix": "sheng",
+  "chat_date": "2026-09-25",
+  "chat": "[25/09/2026, 21:00] Tosh: Mse, zile Jordan 1 ziko bado? Nataka size 41\n[25/09/2026, 21:03] Brayo: Ziko bro, size 41 ziko. Ni fresh kwa box\n[25/09/2026, 21:04] Tosh: Rangi ni ile red na black?\n[25/09/2026, 21:04] Brayo: Ee, red na black\n[25/09/2026, 21:05] Tosh: Ni ngapi?\n[25/09/2026, 21:05] Brayo: 5k\n[25/09/2026, 21:07] Tosh: Aii hiyo ni mob bana. Nikuchapie 3.5k\n[25/09/2026, 21:09] Brayo: 3.5 haiwezekani mzee. Wacha tuende 4.2k last\n[25/09/2026, 21:10] Tosh: Sawa basi, 4.2k fiti\n[25/09/2026, 21:11] Tosh: Unaeza nirushia na boda? Niko Ruaka\n[25/09/2026, 21:13] Brayo: Iko poa, boda itakuletea kesho mchana\n[25/09/2026, 21:13] Tosh: Fiti, tuko pamoja\n[25/09/2026, 21:14] Brayo: Hakuna noma",
+  "gold": {
+    "item": "Air Jordan 1 red and black, size 41",
+    "quantity": 1,
+    "price": { "amount": "4200.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-26",
+    "conditions": ["Size 41", "Red and black", "New in box"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Sheng negotiation 5k -> 4.2k ('nikuchapie' = let me pay you); boda delivery 'kesho' from Fri 25 Sep = 2026-09-26."
+}

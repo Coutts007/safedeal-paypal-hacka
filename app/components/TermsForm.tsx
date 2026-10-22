@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { ChatMessage } from "@/lib/ai/chat";
+import type { FieldHint, HintedField } from "@/lib/ai/proposal";
+import { SourceChips } from "./Sources";
 import { Button, Field, inputClass } from "./ui";
 
 export type TermsInput = {
@@ -35,6 +38,12 @@ function money(v: string): string {
   return v.trim() && Number.isFinite(n) ? n.toFixed(2) : v;
 }
 
+const NAIROBI_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" });
+/** ISO date-time → the YYYY-MM-DD a date input shows (Nairobi). */
+const toDay = (iso: string | null) => (iso ? NAIROBI_DAY.format(new Date(iso)) : "");
+/** A picked day means 18:00 Nairobi time that day, the default the AI also uses. */
+const fromDay = (day: string) => (day ? `${day}T18:00:00+03:00` : null);
+
 type Props = {
   initial: TermsInput;
   kesPerUsd: number;
@@ -43,6 +52,10 @@ type Props = {
   onSubmit: (terms: TermsInput) => void;
   /** Hide the payee field (the buyer may edit terms but the seller owns the payout email). */
   showPayee?: boolean;
+  /** From a chat the AI read: per-field markers and the messages they cite. */
+  hints?: Partial<Record<HintedField, FieldHint>>;
+  conditionSources?: string[][];
+  chat?: ChatMessage[];
 };
 
 export default function TermsForm({
@@ -52,7 +65,16 @@ export default function TermsForm({
   busy,
   onSubmit,
   showPayee = true,
+  hints = {},
+  conditionSources = [],
+  chat = [],
 }: Props) {
+  const marker = (f: HintedField) => {
+    const h = hints[f];
+    return h ? (
+      <SourceChips ids={h.sources} chat={chat} confidence={h.confidence} note={h.note} />
+    ) : null;
+  };
   const [t, setT] = useState(initial);
   const [conditions, setConditions] = useState(initial.conditions.join("\n"));
   const set = <K extends keyof TermsInput>(k: K, v: TermsInput[K]) =>
@@ -84,6 +106,7 @@ export default function TermsForm({
           onChange={(e) => set("item", e.target.value)}
           placeholder="Samsung Galaxy A15, used"
         />
+        {marker("item")}
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field
@@ -102,6 +125,7 @@ export default function TermsForm({
             onChange={(e) => set("price", { amount: e.target.value, currency: "USD" })}
             placeholder="95.00"
           />
+          {marker("price")}
         </Field>
         <Field label="Quantity">
           <input
@@ -112,6 +136,7 @@ export default function TermsForm({
             value={t.quantity}
             onChange={(e) => set("quantity", Number(e.target.value))}
           />
+          {marker("quantity")}
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -127,6 +152,7 @@ export default function TermsForm({
             <option value="post">Post</option>
             <option value="other">Other</option>
           </select>
+          {marker("deliveryMethod")}
         </Field>
         <Field label="Carrier">
           <input
@@ -136,6 +162,27 @@ export default function TermsForm({
             onChange={(e) => set("carrier", e.target.value)}
             placeholder="G4S"
           />
+          {marker("carrier")}
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Ship by (optional)" hint="Blank: 48 h after payment">
+          <input
+            className={inputClass}
+            type="date"
+            value={toDay(t.shipBy)}
+            onChange={(e) => set("shipBy", fromDay(e.target.value))}
+          />
+          {marker("shipBy")}
+        </Field>
+        <Field label="Deliver by (optional)" hint="Blank: 7 days after payment">
+          <input
+            className={inputClass}
+            type="date"
+            value={toDay(t.deliverBy)}
+            onChange={(e) => set("deliverBy", fromDay(e.target.value))}
+          />
+          {marker("deliverBy")}
         </Field>
       </div>
       <Field label="Conditions" hint="One per line, e.g. “Screen has no cracks”">
@@ -144,6 +191,9 @@ export default function TermsForm({
           value={conditions}
           onChange={(e) => setConditions(e.target.value)}
         />
+        {conditionSources.some((c) => c.length) && (
+          <SourceChips ids={[...new Set(conditionSources.flat())]} chat={chat} />
+        )}
       </Field>
       <Field
         label="Inspection window (hours)"

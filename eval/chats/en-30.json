@@ -1,0 +1,18 @@
+{
+  "id": "en-30",
+  "language_mix": "english",
+  "chat_date": "2026-09-09",
+  "chat": "[09/09/2026, 09:00] Ochieng: Morning, I need rear shock absorbers for Toyota Probox, the pair\n[09/09/2026, 09:06] Gathoni: We have genuine KYB. 3,500 each, 7,000 for the pair\n[09/09/2026, 09:08] Ochieng: Ok 7k for both\n[09/09/2026, 09:09] Gathoni: They're not in the shop now, I'll order from the warehouse. Come for them in 2 days\n[09/09/2026, 09:11] Ochieng: Fine. Your shop is on Kirinyaga Road right?\n[09/09/2026, 09:12] Gathoni: Yes. When you come show me the M-PESA message, code like QHT7K2MN8B\n[09/09/2026, 09:13] Ochieng: Ok see you",
+  "gold": {
+    "item": "Toyota Probox rear shock absorber (KYB)",
+    "quantity": 2,
+    "price": { "amount": "7000.00", "currency": "KES" },
+    "delivery_method": "pickup",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-11",
+    "conditions": ["Genuine KYB", "Rear"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: pair of shocks (quantity 2) totalling 7,000; pickup 'in 2 days' from Wed 9 Sep = 2026-09-11; M-PESA code to redact."
+}

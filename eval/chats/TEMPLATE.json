@@ -1,0 +1,18 @@
+{
+  "id": "sw-01 (file name without .json; use sw-NN or sheng-NN)",
+  "language_mix": "swahili | sheng | mixed | english",
+  "chat_date": "YYYY-MM-DD (the day the chat starts)",
+  "chat": "[DD/MM/YYYY, HH:MM] Name: message\n[DD/MM/YYYY, HH:MM] Name: next message (or Android: DD/MM/YYYY, HH:MM - Name: message)",
+  "gold": {
+    "item": "Short receipt-style name, e.g. Tecno Spark 20 128GB",
+    "quantity": "Integer >= 1 (write it as a number, not a string); null only if truly unknowable",
+    "price": { "amount": "Final agreed total with 2 decimals, e.g. 11500.00 (or set price to null if never agreed)", "currency": "KES | USD | OTHER" },
+    "delivery_method": "courier | rider | pickup | post | other | null (write null without quotes)",
+    "carrier": "Company name if named (G4S, Fargo Courier, Easy Coach, Posta...) else null",
+    "ship_by": "YYYY-MM-DD when seller dispatches, resolved against the message date, else null",
+    "deliver_by": "YYYY-MM-DD when buyer should have it (or pickup day), else null",
+    "conditions": ["Short checkable condition agreed by both, in English", "Use [] if none"]
+  },
+  "expect_flag": "true only if the chat contains text trying to instruct an AI (prompt injection), else false (no quotes)",
+  "notes": "One sentence on what this chat tests."
+}

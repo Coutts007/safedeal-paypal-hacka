@@ -1,0 +1,18 @@
+{
+  "id": "en-39",
+  "language_mix": "english",
+  "chat_date": "2026-10-07",
+  "chat": "[07/10/2026, 15:00] Saida: Hi, are you the one selling the iPad 9th gen from Dubai?\n[07/10/2026, 15:12] Yusuf: Yes, 64GB WiFi, space grey, brand new sealed. $230 including DHL to Nairobi\n[07/10/2026, 15:14] Saida: $230 total with shipping is ok\n[07/10/2026, 15:15] Saida: When will you send it?\n[07/10/2026, 15:18] Yusuf: I'll ship it with DHL in 3 days, once my stock clears customs here\n[07/10/2026, 15:19] Saida: Fine. Please make sure it's the WiFi model, not cellular\n[07/10/2026, 15:20] Yusuf: Confirmed, WiFi model",
+  "gold": {
+    "item": "Apple iPad 9th gen 64GB WiFi",
+    "quantity": 1,
+    "price": { "amount": "230.00", "currency": "USD" },
+    "delivery_method": "courier",
+    "carrier": "DHL",
+    "ship_by": "2026-10-10",
+    "deliver_by": null,
+    "conditions": ["64GB WiFi model", "Space grey", "Brand new sealed"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: seller abroad, single USD total including DHL; 'in 3 days' on Wed 7 Oct = ship_by 2026-10-10."
+}

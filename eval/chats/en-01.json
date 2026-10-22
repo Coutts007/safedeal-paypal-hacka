@@ -1,0 +1,18 @@
+{
+  "id": "en-01",
+  "language_mix": "english",
+  "chat_date": "2026-10-20",
+  "chat": "[20/10/2026, 09:01] Achieng: Hi, is the Samsung A15 still available?\n[20/10/2026, 09:03] Brian: Yes it is. 128GB, blue, very clean\n[20/10/2026, 09:04] Achieng: How much?\n[20/10/2026, 09:05] Brian: 13,500\n[20/10/2026, 09:07] Achieng: That's a lot. Can you do 11k?\n[20/10/2026, 09:10] Brian: 11 is too low. Last price 12,000\n[20/10/2026, 09:12] Achieng: Sawa, 12k is fine. Does the screen have any cracks?\n[20/10/2026, 09:13] Brian: No cracks at all, and it comes with the original charger\n[20/10/2026, 09:15] Achieng: Ok. I'm in Nakuru, can you send via G4S?\n[20/10/2026, 09:16] Brian: Yes. I'll drop it at G4S by Thursday\n[20/10/2026, 09:17] Achieng: Perfect, deal",
+  "gold": {
+    "item": "Samsung Galaxy A15 128GB",
+    "quantity": 1,
+    "price": { "amount": "12000.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "G4S",
+    "ship_by": "2026-10-22",
+    "deliver_by": null,
+    "conditions": ["Screen has no cracks", "Comes with original charger"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: negotiation 13,500 -> 12,000 and 'by Thursday' said on Tue 20 Oct resolves to ship_by 2026-10-22."
+}

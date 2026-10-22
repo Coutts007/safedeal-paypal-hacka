@@ -1,0 +1,18 @@
+{
+  "id": "en-31",
+  "language_mix": "mixed",
+  "chat_date": "2026-10-22",
+  "chat": "[22/10/2026, 12:05] Mugo: Sasa, uko na tyres za Vitz 175/65 R14?\n[22/10/2026, 12:09] Hassan: Ziko. Ni ex-Japan, thread bado iko poa. 4,000 kila moja\n[22/10/2026, 12:10] Mugo: Nataka nne. Fanya 3,000 kila moja\n[22/10/2026, 12:14] Hassan: Hapana boss. Nne nitakupea 3,500 kila moja, jumla 14,000\n[22/10/2026, 12:15] Mugo: Sawa, 14k for all four\n[22/10/2026, 12:17] Mugo: Unaweza tuma na boda? Niko Githurai 45\n[22/10/2026, 12:19] Hassan: Ndio, boda italeta leo jioni\n[22/10/2026, 12:20] Mugo: Poa sana",
+  "gold": {
+    "item": "Toyota Vitz tyre 175/65 R14",
+    "quantity": 4,
+    "price": { "amount": "14000.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-22",
+    "conditions": ["Size 175/65 R14", "Ex-Japan with good tread"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: mixed Swahili, 4 tyres negotiated from 4,000 to 3,500 each = 14,000 total; 'leo jioni' (this evening) = 2026-10-22."
+}

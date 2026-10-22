@@ -1,0 +1,18 @@
+{
+  "id": "en-38",
+  "language_mix": "mixed",
+  "chat_date": "2026-09-05",
+  "chat": "[05/09/2026, 11:00] Wanjiku: Hi, ile baby cot ya mbao bado iko?\n[05/09/2026, 11:05] Okoth: Iko. Na mattress yake. 10k\n[05/09/2026, 11:07] Wanjiku: Punguza kidogo, nikupe 8k\n[05/09/2026, 11:10] Okoth: 8 hapana. Wacha 9k bob, mwisho\n[05/09/2026, 11:11] Wanjiku: Sawa 9k. Mattress iko safi?\n[05/09/2026, 11:12] Okoth: Iko safi kabisa, haina madoa\n[05/09/2026, 11:14] Wanjiku: Poa. Tuma na boda, niko Kahawa West\n[05/09/2026, 11:15] Okoth: Boda itafika kesho saa nne\n[05/09/2026, 11:17] Wanjiku: Sawa. Last time nililipa na M-PESA code TBX9R3QW1L, nitatumia same line\n[05/09/2026, 11:18] Okoth: Sawa",
+  "gold": {
+    "item": "Wooden baby cot with mattress",
+    "quantity": 1,
+    "price": { "amount": "9000.00", "currency": "KES" },
+    "delivery_method": "rider",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-09-06",
+    "conditions": ["Mattress included", "Mattress clean with no stains"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: mixed Swahili with 'bob' slang, negotiation 10k -> 9k; 'kesho' on Sat 5 Sep = 2026-09-06; M-PESA code to redact."
+}

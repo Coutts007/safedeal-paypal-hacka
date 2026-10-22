@@ -1,0 +1,19 @@
+{
+  "id": "sw-example-02",
+  "example": true,
+  "language_mix": "swahili",
+  "chat_date": "2026-11-10",
+  "chat": "10/11/2026, 18:20 - Zuhura: Jioni njema. Kabati la nguo la milango mitatu bado lipo?\n10/11/2026, 18:25 - Hamisi: Lipo. Ni la mbao ngumu, lina kioo kwenye mlango wa kati. Bei ni shilingi elfu kumi na nane\n10/11/2026, 18:27 - Zuhura: Bei hiyo ni sawa kwangu. Je, lina mikwaruzo?\n10/11/2026, 18:29 - Hamisi: Halina mikwaruzo, liko katika hali nzuri sana\n10/11/2026, 18:31 - Zuhura: Nitakuja kulichukua mwenyewe na gari la mizigo\n10/11/2026, 18:32 - Hamisi: Karibu. Utakuja lini?\n10/11/2026, 18:34 - Zuhura: Jumamosi hii asubuhi\n10/11/2026, 18:35 - Hamisi: Sawa, Jumamosi. Niko Kariobangi North, karibu na kanisa\n10/11/2026, 18:36 - Zuhura: Asante, tutaonana",
+  "gold": {
+    "item": "3-door hardwood wardrobe with mirror",
+    "quantity": 1,
+    "price": { "amount": "18000.00", "currency": "KES" },
+    "delivery_method": "pickup",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-11-14",
+    "conditions": ["Three doors", "Hardwood", "Mirror on the middle door", "No scratches"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Swahili, Android format, price written in words (elfu kumi na nane = 18,000); buyer collects 'Jumamosi hii' from Tue 10 Nov = 2026-11-14."
+}

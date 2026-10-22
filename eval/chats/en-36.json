@@ -1,0 +1,18 @@
+{
+  "id": "en-36",
+  "language_mix": "english",
+  "chat_date": "2026-10-16",
+  "chat": "16/10/2026, 09:10 - Kemunto: Hello, how much is the metal double-decker bunk bed?\n16/10/2026, 09:15 - Maina: Ksh 17,000. Comes with two mattresses\n16/10/2026, 09:17 - Kemunto: Can I get it for 14k?\n16/10/2026, 09:21 - Maina: 15k is the lowest\n16/10/2026, 09:22 - Kemunto: Ok, 15,000 then\n16/10/2026, 09:23 - Kemunto: Are the mattresses new?\n16/10/2026, 09:25 - Maina: Yes, both mattresses are new, still in plastic\n16/10/2026, 09:27 - Maina: I deliver with our company lorry. I can bring it on Sunday\n16/10/2026, 09:28 - Kemunto: Sunday is good. I'm in Syokimau\n16/10/2026, 09:29 - Maina: Noted",
+  "gold": {
+    "item": "Metal double-decker bunk bed with 2 mattresses",
+    "quantity": 1,
+    "price": { "amount": "15000.00", "currency": "KES" },
+    "delivery_method": "other",
+    "carrier": null,
+    "ship_by": null,
+    "deliver_by": "2026-10-18",
+    "conditions": ["Two new mattresses included"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Android format, negotiation 17,000 -> 15,000; seller's own lorry is 'other'; 'Sunday' from Fri 16 Oct = 2026-10-18."
+}

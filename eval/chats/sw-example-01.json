@@ -1,0 +1,19 @@
+{
+  "id": "sw-example-01",
+  "example": true,
+  "language_mix": "swahili",
+  "chat_date": "2026-10-19",
+  "chat": "[19/10/2026, 10:02] Amina: Habari, simu ya Tecno Spark 20 bado inapatikana?\n[19/10/2026, 10:05] Baraka: Nzuri. Ndiyo, bado ipo. Ni 128GB, rangi nyeusi\n[19/10/2026, 10:06] Amina: Bei yake ni ngapi?\n[19/10/2026, 10:07] Baraka: Shilingi elfu kumi na tatu (13,000)\n[19/10/2026, 10:09] Amina: Ni ghali kidogo. Naweza kulipa elfu kumi na moja?\n[19/10/2026, 10:12] Baraka: Siwezi kushuka hadi hapo. Nitakuuzia kwa elfu kumi na moja na mia tano (11,500), bei ya mwisho\n[19/10/2026, 10:13] Amina: Sawa, nimekubali 11,500. Skrini ina ufa wowote?\n[19/10/2026, 10:15] Baraka: Haina ufa wowote, na inakuja na chaja yake halisi\n[19/10/2026, 10:16] Amina: Mimi niko Kisumu. Unaweza kutuma kupitia G4S?\n[19/10/2026, 10:18] Baraka: Ndiyo, nitaipeleka G4S Jumatano\n[19/10/2026, 10:19] Amina: Asante sana, tumekubaliana",
+  "gold": {
+    "item": "Tecno Spark 20 128GB",
+    "quantity": 1,
+    "price": { "amount": "11500.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "G4S",
+    "ship_by": "2026-10-21",
+    "deliver_by": null,
+    "conditions": ["Black", "Screen has no cracks", "Comes with original charger"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: Swahili negotiation 13,000 -> 11,500 with prices partly in words; 'Jumatano' (Wednesday) said on Mon 19 Oct = ship_by 2026-10-21."
+}

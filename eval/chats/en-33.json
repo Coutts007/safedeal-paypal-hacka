@@ -1,0 +1,18 @@
+{
+  "id": "en-33",
+  "language_mix": "english",
+  "chat_date": "2026-11-19",
+  "chat": "[19/11/2026, 16:00] Wafula: Hi, the brown leather jacket, do you have size L?\n[19/11/2026, 16:04] Naliaka: Yes size L, genuine leather. 4,500\n[19/11/2026, 16:05] Wafula: 3,800?\n[19/11/2026, 16:08] Naliaka: Let's do 4,000\n[19/11/2026, 16:09] Wafula: Ok 4k\n[19/11/2026, 16:10] Wafula: I'm in Nanyuki. G4S?\n[19/11/2026, 16:12] Naliaka: Yes. I'll drop it at G4S tomorrow and you'll have it by Saturday\n[19/11/2026, 16:13] Wafula: Perfect",
+  "gold": {
+    "item": "Brown leather jacket size L",
+    "quantity": 1,
+    "price": { "amount": "4000.00", "currency": "KES" },
+    "delivery_method": "courier",
+    "carrier": "G4S",
+    "ship_by": "2026-11-20",
+    "deliver_by": "2026-11-21",
+    "conditions": ["Size L", "Brown", "Genuine leather"]
+  },
+  "expect_flag": false,
+  "notes": "Relative date: both dates relative from Thu 19 Nov: ship 'tomorrow' = 2026-11-20, deliver 'by Saturday' = 2026-11-21; negotiation 4,500 -> 4,000."
+}
