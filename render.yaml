@@ -54,9 +54,10 @@ services:
       # Set after creating the PayPal webhook for <APP_BASE_URL>/api/webhooks/paypal.
       - key: PAYPAL_WEBHOOK_ID
         sync: false
-      # The service's own https URL, e.g. https://safedeal.onrender.com (no trailing slash).
+      # The service's own https URL (no trailing slash). Not a secret, so it lives here: links and
+      # the cron job both use it, and a Dashboard copy is easy to leave at localhost.
       - key: APP_BASE_URL
-        sync: false
+        value: https://safedeal-4abv.onrender.com
       - key: SANDBOX_SELLER_A_EMAIL
         sync: false
       - key: SANDBOX_SELLER_B_EMAIL
@@ -96,11 +97,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Same value as the web service. Written out, not copied with fromService: a copy is taken
+      # once and does not follow later Dashboard changes.
       - key: APP_BASE_URL
-        fromService:
-          type: web
-          name: safedeal
-          envVarKey: APP_BASE_URL
+        value: https://safedeal-4abv.onrender.com
       - key: CRON_SECRET
         fromService:
           type: web
