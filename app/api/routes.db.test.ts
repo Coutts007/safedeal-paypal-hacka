@@ -185,6 +185,8 @@ describe("payment flow", () => {
     );
     expect(await ev.json()).toMatchObject({ to: "SHIPPED" });
     expect((await view(d.ref, d.buyer)).body.actions).toEqual([
+      "propose_extension",
+      "add_evidence",
       "confirm_receipt",
       "report_problem",
     ]);

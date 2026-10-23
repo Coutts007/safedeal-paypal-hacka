@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { appendAudit } from "@/lib/audit";
 import { getDb, type Db, type Tx } from "@/lib/db";
 import {
@@ -7,13 +7,21 @@ import {
   deals,
   dealTerms,
   evidence,
+  extensions,
   payments,
   reviews,
   type Deal,
   type DealState,
   type ReviewKind,
 } from "@/lib/db/schema";
-import { dealTermsSchema } from "@/lib/deals/terms";
+import { carrySourceRefs } from "@/lib/ai/proposal";
+import {
+  codeMatches,
+  HANDOVER_MAX_ATTEMPTS,
+  handoverCode,
+  handoverHash,
+} from "@/lib/deals/handover";
+import { dealTermsSchema, termsHash } from "@/lib/deals/terms";
 import { serverEnv } from "@/lib/env";
 import * as disputesApi from "@/lib/paypal/disputes";
 import * as ordersApi from "@/lib/paypal/orders";
@@ -59,6 +67,8 @@ export type EngineDeps = {
   timeScale: number;
   /** MAX_DEAL_USD, checked again before any PayPal order is created. */
   maxDealUsd: number;
+  /** HANDOVER_SECRET; empty means no handover codes (code entry is then refused). */
+  handoverSecret: string;
 };
 
 let defaults: EngineDeps | undefined;
@@ -81,6 +91,7 @@ export function defaultDeps(): EngineDeps {
       now: () => new Date(),
       timeScale: serverEnv().DEMO_TIME_SCALE,
       maxDealUsd: serverEnv().MAX_DEAL_USD,
+      handoverSecret: serverEnv().HANDOVER_SECRET,
     };
   }
   return defaults;
@@ -232,6 +243,10 @@ async function runPaypalStep(ctx: Ctx, step: PaypalStep): Promise<StepResult> {
         authExpiresAt: auth.expiresAt,
         shipBy: deal.shipBy ?? defaultsAt.shipBy,
         deliverBy: deal.deliverBy ?? defaultsAt.deliverBy,
+        // Only the hash of the buyer's handover code is stored (lib/deals/handover.ts).
+        handoverCodeHash: deps.handoverSecret
+          ? handoverHash(deal.id, handoverCode(deal.id, deps.handoverSecret))
+          : null,
       },
       info: {
         requestId,
@@ -689,6 +704,7 @@ export function onTrackingSubmitted(
         await tx.insert(evidence).values({
           dealId,
           type: "tracking",
+          addedBy: "seller",
           carrier: input.carrier,
           trackingNumber: input.trackingNumber,
         });
@@ -716,6 +732,185 @@ export function onCourierDelivered(
           : undefined,
     },
   );
+}
+
+/**
+ * The seller enters the code the buyer gave them at handover. A correct code is a verified
+ * delivery; the 5th wrong code locks entry and flags the deal for an admin. The code itself is
+ * never logged.
+ */
+export function onHandoverCode(dealId: string, code: string, deps = defaultDeps()) {
+  return transition(
+    deps,
+    dealId,
+    async ({ tx, deal, now }) => {
+      if (deal.handoverLocked) {
+        return "code entry is locked after 5 wrong codes; a SafeDeal reviewer has been alerted";
+      }
+      const stored =
+        deal.handoverCodeHash ??
+        (deps.handoverSecret
+          ? handoverHash(deal.id, handoverCode(deal.id, deps.handoverSecret))
+          : null);
+      if (!stored) return "this deal has no handover code";
+      if (codeMatches(stored, deal.id, code)) return { type: "HANDOVER_VERIFIED" };
+      const attempts = deal.handoverAttempts + 1;
+      const locked = attempts >= HANDOVER_MAX_ATTEMPTS;
+      await tx
+        .update(deals)
+        .set({ handoverAttempts: attempts, handoverLocked: locked, updatedAt: now })
+        .where(eq(deals.id, dealId));
+      if (locked) {
+        await appendAudit(
+          tx,
+          { dealId, actor: "seller", action: "handover.locked", details: { attempts } },
+          now,
+        );
+        return "wrong code. Code entry is now locked; a SafeDeal reviewer has been alerted";
+      }
+      const left = HANDOVER_MAX_ATTEMPTS - attempts;
+      return `wrong code. ${left} ${left === 1 ? "try" : "tries"} left before code entry locks`;
+    },
+    {
+      actor: "seller",
+      effects: async ({ now }, to) =>
+        to === "DELIVERED"
+          ? { deliveredAt: now, deliveryProof: "handover_code" as const, handoverAttempts: 0 }
+          : undefined,
+    },
+  );
+}
+
+/** Either party proposes a new deliver-by date. A newer proposal replaces an open one. */
+export function onExtensionProposed(
+  dealId: string,
+  input: { role: "buyer" | "seller"; newDeliverBy: Date },
+  deps = defaultDeps(),
+) {
+  return transition(
+    deps,
+    dealId,
+    { type: "EXTENSION_PROPOSED", newDeliverBy: input.newDeliverBy },
+    {
+      actor: input.role,
+      details: { newDeliverBy: input.newDeliverBy.toISOString() },
+      effects: async ({ tx, deal, now }) => {
+        await tx
+          .update(extensions)
+          .set({ status: "expired", decidedAt: now })
+          .where(and(eq(extensions.dealId, dealId), eq(extensions.status, "proposed")));
+        await tx.insert(extensions).values({
+          dealId,
+          proposedBy: input.role,
+          oldDeliverBy: deal.deliverBy,
+          newDeliverBy: input.newDeliverBy,
+        });
+      },
+    },
+  );
+}
+
+/**
+ * The other party accepts or rejects a proposed date. Accepting creates a new terms version with
+ * the new deliver-by, confirmed by both (the proposer by proposing, the other by accepting), and a
+ * deal in a deliver-by review goes back to SHIPPED.
+ */
+export function onExtensionDecided(
+  dealId: string,
+  input: { role: "buyer" | "seller"; extensionId: string; accept: boolean },
+  deps = defaultDeps(),
+) {
+  return transition(
+    deps,
+    dealId,
+    async ({ tx }) => {
+      const [ext] = await tx
+        .select()
+        .from(extensions)
+        .where(and(eq(extensions.id, input.extensionId), eq(extensions.dealId, dealId)));
+      if (!ext || ext.status !== "proposed") return "this date change is no longer open";
+      if (ext.proposedBy === input.role) {
+        return "the other party has to accept or reject the date you proposed";
+      }
+      return input.accept
+        ? { type: "EXTENSION_ACCEPTED", newDeliverBy: ext.newDeliverBy }
+        : { type: "EXTENSION_REJECTED" };
+    },
+    {
+      actor: input.role,
+      details: { extensionId: input.extensionId, accept: input.accept },
+      effects: async ({ tx, now }) => {
+        const [ext] = await tx
+          .select()
+          .from(extensions)
+          .where(eq(extensions.id, input.extensionId));
+        if (!input.accept) {
+          await tx
+            .update(extensions)
+            .set({ status: "rejected", decidedAt: now })
+            .where(eq(extensions.id, ext.id));
+          return;
+        }
+        const [latest] = await tx
+          .select()
+          .from(dealTerms)
+          .where(eq(dealTerms.dealId, dealId))
+          .orderBy(desc(dealTerms.version))
+          .limit(1);
+        const prev = dealTermsSchema.parse(latest.termsJson);
+        const terms = { ...prev, deliverBy: ext.newDeliverBy.toISOString() };
+        const [added] = await tx
+          .insert(dealTerms)
+          .values({
+            dealId,
+            version: latest.version + 1,
+            termsJson: terms,
+            termsHash: termsHash(terms),
+            sourceRefsJson: carrySourceRefs(latest.sourceRefsJson, prev, terms) ?? {},
+            proposedBy: "user",
+          })
+          .returning({ id: dealTerms.id });
+        await tx.insert(confirmations).values([
+          { dealId, termsId: added.id, role: "buyer" },
+          { dealId, termsId: added.id, role: "seller" },
+        ]);
+        await tx
+          .update(extensions)
+          .set({ status: "accepted", termsId: added.id, decidedAt: now })
+          .where(eq(extensions.id, ext.id));
+        return { deliverBy: ext.newDeliverBy, confirmedTermsId: added.id };
+      },
+    },
+  );
+}
+
+/** Admin lifts a handover lock (e.g. after talking to both parties), with a written reason. */
+export async function onHandoverUnlock(
+  dealId: string,
+  input: { reason: string; admin: string },
+  deps = defaultDeps(),
+): Promise<{ ok: boolean; reason: string }> {
+  if (!input.reason.trim()) return { ok: false, reason: "unlocking needs a reason" };
+  return deps.db.transaction(async (tx) => {
+    const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).for("no key update");
+    if (!deal?.handoverLocked) return { ok: false, reason: "code entry is not locked" };
+    const now = deps.now();
+    await tx
+      .update(deals)
+      .set({ handoverLocked: false, handoverAttempts: 0, updatedAt: now })
+      .where(eq(deals.id, dealId));
+    await appendAudit(
+      tx,
+      {
+        dealId,
+        actor: "admin",
+        action: "handover.unlocked",
+        details: { adminReason: input.reason, admin: input.admin },
+      },
+      now,
+    );
+    return { ok: true, reason: "code entry unlocked" };
+  });
 }
 
 export function onBuyerConfirmed(dealId: string, deps = defaultDeps()) {
@@ -788,6 +983,7 @@ export function onCancel(dealId: string, role: "buyer" | "seller", deps = defaul
  * a deal locked by the other run is skipped, and every PayPal call has a fixed request id.
  */
 export async function onSweep(deps = defaultDeps()) {
+  await expireExtensions(deps);
   const held = await deps.db
     .select({ id: deals.id })
     .from(deals)
@@ -818,6 +1014,39 @@ export async function onSweep(deps = defaultDeps()) {
     results.push({ dealId: id, result });
   }
   return results;
+}
+
+/** Open date proposals whose date has passed, or whose deal can no longer be extended. */
+async function expireExtensions(deps: EngineDeps) {
+  const now = deps.now();
+  await deps.db.transaction(async (tx) => {
+    const stale = await tx
+      .select({ id: extensions.id, dealId: extensions.dealId })
+      .from(extensions)
+      .innerJoin(deals, eq(deals.id, extensions.dealId))
+      .where(
+        and(
+          eq(extensions.status, "proposed"),
+          or(lte(extensions.newDeliverBy, now), notInArray(deals.state, ["SHIPPED", "IN_REVIEW"])),
+        ),
+      );
+    for (const x of stale) {
+      await tx
+        .update(extensions)
+        .set({ status: "expired", decidedAt: now })
+        .where(eq(extensions.id, x.id));
+      await appendAudit(
+        tx,
+        {
+          dealId: x.dealId,
+          actor: "sweep",
+          action: "extension.expired",
+          details: { extensionId: x.id },
+        },
+        now,
+      );
+    }
+  });
 }
 
 type WebhookEvent = { id: string; event_type: string; resource?: unknown };

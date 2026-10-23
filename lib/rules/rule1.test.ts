@@ -57,4 +57,23 @@ describe("rule 1: only the rule engine moves money", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  it("AI code cannot reach the engine or PayPal, and the engine never reads AI evidence labels", () => {
+    const read = (f: string) => readFileSync(join(ROOT, f), "utf8");
+    const aiFiles = files.filter((f) => f.startsWith("lib/ai/"));
+    expect(aiFiles.length).toBeGreaterThan(5);
+    const aiImportingEngine = aiFiles.filter((f) =>
+      /from\s+["']@\/lib\/(rules|paypal)\//.test(read(f)),
+    );
+    expect(aiImportingEngine).toEqual([]);
+
+    const ruleFiles = files.filter((f) => f.startsWith("lib/rules/"));
+    for (const f of ruleFiles) {
+      const src = read(f);
+      // Only the pure source-reference helper may be imported from lib/ai (no model, no labels).
+      const aiImports = [...src.matchAll(/from\s+["']@\/lib\/ai\/([\w-]+)["']/g)].map((m) => m[1]);
+      expect(aiImports.filter((m) => m !== "proposal")).toEqual([]);
+      expect(src).not.toMatch(/evidenceChecks|evidence_checks|checkLabel|check_label/);
+    }
+  });
 });

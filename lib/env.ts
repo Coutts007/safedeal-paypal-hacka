@@ -18,6 +18,8 @@ const serverEnvSchema = z.object({
   TEST_COURIER_SECRET: z.string().default(""),
   CRON_SECRET: z.string().default(""),
   ADMIN_PASSWORD: z.string().default(""),
+  // Derives each deal's 6-digit handover code (lib/deals/handover.ts). Random, 32+ characters.
+  HANDOVER_SECRET: z.string().default(""),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
   DEMO_TIME_SCALE: z.coerce.number().positive().default(1),
   DEMO_MODE: z

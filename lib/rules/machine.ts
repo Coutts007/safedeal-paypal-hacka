@@ -49,6 +49,12 @@ export type Trigger =
   | { type: "BUYER_APPROVED"; orderApproved: boolean }
   | { type: "TRACKING_SUBMITTED" }
   | { type: "COURIER_DELIVERED"; verified: boolean }
+  /** The seller entered the buyer's correct handover code (checked against the stored hash). */
+  | { type: "HANDOVER_VERIFIED" }
+  /** One party proposes a new deliver-by date; the other accepts or rejects it (section 7.1). */
+  | { type: "EXTENSION_PROPOSED"; newDeliverBy: Date }
+  | { type: "EXTENSION_ACCEPTED"; newDeliverBy: Date }
+  | { type: "EXTENSION_REJECTED" }
   | { type: "BUYER_CONFIRMED" }
   | { type: "BUYER_PROBLEM" }
   | { type: "SWEEP" }
@@ -118,6 +124,26 @@ export const DEADLINE_REVIEWS: readonly ReviewKind[] = ["deliver_by", "day_26"];
 /** In review only because a deadline passed, so late proof of delivery still counts. */
 export const isDeadlineReview = (d: DealSnapshot) =>
   d.state === "IN_REVIEW" && d.openReview !== null && DEADLINE_REVIEWS.includes(d.openReview);
+
+/**
+ * Can the delivery date be extended now, to `to`? Only while shipped, or in review because the
+ * deliver-by date passed (never a buyer complaint), and only to a future date before day 26.
+ */
+export function extensionProblem(d: DealSnapshot, to: Date, now: Date, t: Timing): string | null {
+  const shippedOrLate =
+    d.state === "SHIPPED" || (d.state === "IN_REVIEW" && d.openReview === "deliver_by");
+  if (!shippedOrLate) {
+    return d.state === "IN_REVIEW"
+      ? "the delivery date cannot be extended while a reviewer is handling a problem"
+      : `the delivery date can only be extended after shipping (state ${d.state})`;
+  }
+  if (to <= now) return "the new delivery date must be in the future";
+  const limit = reviewAt(d, t);
+  if (limit && to >= limit) {
+    return "the new delivery date must be before day 26 of the PayPal hold";
+  }
+  return null;
+}
 
 const reject = (reason: string): Decision => ({ kind: "reject", reason });
 const stay = (reason: string): Decision => ({ kind: "stay", reason });
@@ -218,6 +244,37 @@ export function nextState(d: DealSnapshot, trigger: Trigger, now: Date, t: Timin
       }
       if (d.state !== "SHIPPED") return stay(`delivery recorded; no change in state ${d.state}`);
       return { kind: "move", to: "DELIVERED", reason: "verified courier delivered event" };
+
+    case "HANDOVER_VERIFIED":
+      // Same as a verified courier delivery: the inspection window starts.
+      if (isDeadlineReview(d) && !d.deliveredAt) {
+        return {
+          kind: "move",
+          to: "DELIVERED",
+          reason: "handover code entered after a deadline review",
+        };
+      }
+      if (d.state !== "AUTHORIZED" && d.state !== "SHIPPED")
+        return notIn(d, "Entering a handover code");
+      return { kind: "move", to: "DELIVERED", reason: "seller entered the buyer's handover code" };
+
+    case "EXTENSION_PROPOSED": {
+      const problem = extensionProblem(d, trigger.newDeliverBy, now, t);
+      return problem ? reject(problem) : stay("new delivery date proposed");
+    }
+
+    case "EXTENSION_ACCEPTED": {
+      // Checked again: the deal or the clock may have moved since the proposal.
+      const problem = extensionProblem(d, trigger.newDeliverBy, now, t);
+      if (problem) return reject(problem);
+      if (d.state === "IN_REVIEW") {
+        return { kind: "move", to: "SHIPPED", reason: "both parties agreed a new delivery date" };
+      }
+      return stay("both parties agreed a new delivery date");
+    }
+
+    case "EXTENSION_REJECTED":
+      return stay("new delivery date rejected");
 
     case "BUYER_CONFIRMED":
       if (isDeadlineReview(d)) {

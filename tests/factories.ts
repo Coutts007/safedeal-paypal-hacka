@@ -101,6 +101,8 @@ export function fakePaypal() {
   return { port, authStatus };
 }
 
+export const TEST_HANDOVER_SECRET = "test-handover-secret-0123456789abcdef";
+
 export function testDeps(db: Db, paypal: PaypalPort, start: Date) {
   const clock = { now: new Date(start) };
   const deps: EngineDeps = {
@@ -109,6 +111,7 @@ export function testDeps(db: Db, paypal: PaypalPort, start: Date) {
     now: () => new Date(clock.now),
     timeScale: 1,
     maxDealUsd: 500,
+    handoverSecret: TEST_HANDOVER_SECRET,
   };
   return { deps, clock, advance: (ms: number) => (clock.now = new Date(clock.now.getTime() + ms)) };
 }
