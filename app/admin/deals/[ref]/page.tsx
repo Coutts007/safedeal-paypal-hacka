@@ -22,11 +22,11 @@ const when = (iso: string | null) => (iso ? nairobi(iso) : "—");
 
 function Rows({ rows }: { rows: [string, React.ReactNode][] }) {
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
       {rows.map(([k, v]) => (
         <div key={k} className="contents">
           <dt className="text-neutral-500">{k}</dt>
-          <dd className="break-words">{v}</dd>
+          <dd className="min-w-0 [overflow-wrap:anywhere]">{v}</dd>
         </div>
       ))}
     </dl>
