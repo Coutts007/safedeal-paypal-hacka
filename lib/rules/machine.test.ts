@@ -131,6 +131,73 @@ describe("SHIPPED → DELIVERED (verified courier event)", () => {
   });
 });
 
+// Section 7.1: deliveries without courier tracking are proven by the buyer's handover code.
+describe("AUTHORIZED, SHIPPED → DELIVERED (seller enters the handover code)", () => {
+  it.each(["AUTHORIZED", "SHIPPED"] as const)("moves from %s, with no PayPal call", (state) => {
+    const d = run(deal({ state }), { type: "HANDOVER_VERIFIED" });
+    expect(d).toEqual(moved("DELIVERED"));
+    expect(d.kind === "move" && d.paypal).toBeFalsy();
+  });
+  it("counts as late proof in a deliver-by or day-26 review", () => {
+    for (const openReview of ["deliver_by", "day_26"] as const) {
+      expect(run(deal({ state: "IN_REVIEW", openReview }), { type: "HANDOVER_VERIFIED" })).toEqual(
+        moved("DELIVERED"),
+      );
+    }
+  });
+  it("cannot clear a complaint, and is refused once delivered or settled", () => {
+    for (const d of [
+      deal({ state: "IN_REVIEW", openReview: "buyer_problem" }),
+      deal({ state: "DELIVERED", deliveredAt: at(0) }),
+      deal({ state: "CAPTURED" }),
+      deal({ state: "VOIDED" }),
+    ]) {
+      expect(run(d, { type: "HANDOVER_VERIFIED" })).toEqual(rejected);
+    }
+  });
+});
+
+describe("SHIPPED, IN_REVIEW → SHIPPED (extend delivery date)", () => {
+  const shipped = deal({ state: "SHIPPED", hasTracking: true });
+  const lateReview = deal({ state: "IN_REVIEW", openReview: "deliver_by", hasTracking: true });
+  const propose = (d: DealSnapshot, to: Date, now = at(8 * D)) =>
+    run(d, { type: "EXTENSION_PROPOSED", newDeliverBy: to }, now);
+  const accept = (d: DealSnapshot, to: Date, now = at(8 * D)) =>
+    run(d, { type: "EXTENSION_ACCEPTED", newDeliverBy: to }, now);
+
+  it("a proposal changes nothing until the other party accepts", () => {
+    expect(propose(shipped, at(10 * D))).toEqual(stayed);
+    expect(propose(lateReview, at(10 * D))).toEqual(stayed);
+  });
+  it("accepting keeps a shipped deal SHIPPED and brings a late deal back from review", () => {
+    expect(accept(shipped, at(10 * D))).toEqual(stayed);
+    expect(accept(lateReview, at(10 * D))).toEqual(moved("SHIPPED"));
+  });
+  it("rejects a date on or after day 26 of the hold, or in the past", () => {
+    expect(propose(shipped, at(26 * D))).toEqual(rejected);
+    expect(accept(lateReview, at(26 * D))).toEqual(rejected);
+    expect(propose(shipped, at(7 * D))).toEqual(rejected);
+  });
+  it("cannot clear a buyer complaint, a day-26 review or a PayPal problem", () => {
+    for (const openReview of ["buyer_problem", "day_26", "paypal"] as const) {
+      expect(accept(deal({ state: "IN_REVIEW", openReview }), at(10 * D))).toEqual(rejected);
+    }
+  });
+  it("is not possible before shipping or after delivery", () => {
+    for (const state of ["AUTHORIZED", "DELIVERED", "CAPTURED"] as const) {
+      expect(propose(deal({ state }), at(10 * D))).toEqual(rejected);
+    }
+  });
+  it("is checked again at acceptance: a deal delivered meanwhile cannot be extended", () => {
+    expect(accept(deal({ state: "DELIVERED", deliveredAt: at(8 * D) }), at(10 * D))).toEqual(
+      rejected,
+    );
+  });
+  it("a rejection never changes anything", () => {
+    expect(run(shipped, { type: "EXTENSION_REJECTED" })).toEqual(stayed);
+  });
+});
+
 // Section 7.1: a deadline review keeps the money held, but late proof of delivery still pays.
 describe("IN_REVIEW (deadline) → DELIVERED or CAPTURED (late proof of delivery)", () => {
   it.each(["deliver_by", "day_26"] as const)(
@@ -394,6 +461,8 @@ describe("terminal states", () => {
     { type: "BUYER_CONFIRMED" },
     { type: "SWEEP" },
     { type: "ADMIN_DECISION", decision: "capture", reason: "x" },
+    { type: "HANDOVER_VERIFIED" },
+    { type: "EXTENSION_ACCEPTED", newDeliverBy: at(10 * D) },
   ];
   it.each(terminal)("no trigger moves money from %s", (state) => {
     for (const trig of moneyTriggers) {
@@ -427,6 +496,10 @@ describe("coverage of states", () => {
       { type: "BUYER_APPROVED", orderApproved: true },
       { type: "TRACKING_SUBMITTED" },
       { type: "COURIER_DELIVERED", verified: true },
+      { type: "HANDOVER_VERIFIED" },
+      { type: "EXTENSION_PROPOSED", newDeliverBy: at(10 * D) },
+      { type: "EXTENSION_ACCEPTED", newDeliverBy: at(10 * D) },
+      { type: "EXTENSION_REJECTED" },
       { type: "BUYER_CONFIRMED" },
       { type: "BUYER_PROBLEM" },
       { type: "SWEEP" },

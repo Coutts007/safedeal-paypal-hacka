@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -55,6 +56,9 @@ export const extensionStatus = pgEnum("extension_status", [
   "rejected",
   "expired",
 ]);
+
+/** Raw bytes (evidence photos). Stored in Postgres so no paid file store is needed (DECISIONS). */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const createdAt = () => tstz("created_at").notNull().defaultNow();
@@ -143,6 +147,8 @@ export const aiExtractions = pgTable("ai_extractions", {
 export const aiRuns = pgTable("ai_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   extractionId: uuid("extraction_id").references(() => aiExtractions.id),
+  // Set for evidence checks (Phase 5), which run on an existing deal.
+  dealId: uuid("deal_id").references(() => deals.id),
   purpose: text("purpose").notNull(),
   promptVersion: text("prompt_version").notNull(),
   model: text("model").notNull(),
@@ -213,12 +219,48 @@ export const evidence = pgTable("evidence", {
     .notNull()
     .references(() => deals.id),
   type: evidenceType("type").notNull(),
+  // Who added it (null for rows from before Phase 5, which were all seller tracking).
+  addedBy: partyRole("added_by"),
   carrier: text("carrier"),
   trackingNumber: text("tracking_number"),
   fileUrl: text("file_url"),
   note: text("note"),
   checkLabel: text("check_label"),
   checkReasons: jsonb("check_reasons"),
+  createdAt: createdAt(),
+});
+
+/** The bytes of a photo evidence row, kept apart so listing evidence never loads images. */
+export const evidenceFiles = pgTable("evidence_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  evidenceId: uuid("evidence_id")
+    .notNull()
+    .unique()
+    .references(() => evidence.id),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  sha256: text("sha256").notNull(),
+  data: bytea("data").notNull(),
+  createdAt: createdAt(),
+});
+
+/**
+ * AI comparison of the evidence with the confirmed terms (BUILD_PLAN 8.3 `evidence.ts`). Advice
+ * for the reviewer only: the rule engine never reads this table.
+ */
+export const evidenceChecks = pgTable("evidence_checks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dealId: uuid("deal_id")
+    .notNull()
+    .references(() => deals.id),
+  label: text("label").notNull(),
+  reasons: jsonb("reasons").notNull(),
+  flags: jsonb("flags").notNull().default([]),
+  promptVersion: text("prompt_version").notNull(),
+  model: text("model").notNull(),
   createdAt: createdAt(),
 });
 

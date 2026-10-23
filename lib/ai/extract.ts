@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import type { z } from "zod";
 import { chatStartDate, formatForModel, parseChat, type ChatMessage } from "./chat";
 import { correctionPrompt, PROMPT_VERSION, SYSTEM_PROMPT, userPrompt } from "./prompt";
 import { redact } from "./redact";
@@ -26,7 +27,7 @@ export type ModelReply = {
 export type ModelCall = (req: { system: string; messages: Turn[] }) => Promise<ModelReply>;
 
 export type AiRunLog = {
-  purpose: "extract";
+  purpose: "extract" | "evidence";
   promptVersion: string;
   model: string;
   attempt: number;
@@ -54,11 +55,17 @@ export type ExtractResult =
       chatDate: string;
     };
 
-const FORMAT = betaZodOutputFormat(extractionSchema);
-
-/** The Anthropic call used in production. The model comes from LLM_MODEL (Peter's choice). */
-export function anthropicModel(opts: { apiKey: string; model: string }): ModelCall {
+/**
+ * The Anthropic call used in production. The model comes from LLM_MODEL (Peter's choice); the
+ * answer must match `schema` (the chat extraction unless another is given).
+ */
+export function anthropicModel(opts: {
+  apiKey: string;
+  model: string;
+  schema?: z.ZodType;
+}): ModelCall {
   const client = new Anthropic({ apiKey: opts.apiKey, maxRetries: 2, timeout: 90_000 });
+  const format = betaZodOutputFormat(opts.schema ?? extractionSchema);
   return async ({ system, messages }) => {
     const res = await client.beta.messages.create({
       model: opts.model,
@@ -67,7 +74,7 @@ export function anthropicModel(opts: { apiKey: string; model: string }): ModelCa
       messages,
       output_config: {
         effort: "medium",
-        format: { type: "json_schema", schema: FORMAT.schema },
+        format: { type: "json_schema", schema: format.schema },
       },
       // If a safety classifier declines, the API retries on a suitable model in the same call.
       betas: ["server-side-fallback-2026-07-01"],
@@ -89,7 +96,7 @@ export function anthropicModel(opts: { apiKey: string; model: string }): ModelCa
 }
 
 /** "400 invalid_request_error: Your credit balance is too low…", capped for the log. */
-function apiErrorDetail(e: InstanceType<typeof Anthropic.APIError>): string {
+export function apiErrorDetail(e: InstanceType<typeof Anthropic.APIError>): string {
   const body = e.error as { error?: { type?: string; message?: string } } | undefined;
   const parts = [e.status, body?.error?.type].filter(Boolean).join(" ");
   const message = body?.error?.message;

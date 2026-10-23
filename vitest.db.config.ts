@@ -18,6 +18,9 @@ export default defineConfig({
         process.env.TEST_DATABASE_URL ??
         "postgres://safedeal:safedeal@localhost:5433/safedeal_test",
       CRON_SECRET: "test-cron-secret",
+      HANDOVER_SECRET: "test-handover-secret-0123456789abcdef",
+      TEST_COURIER_SECRET: "test-courier-secret",
+      ADMIN_PASSWORD: "test-admin-password",
       APP_BASE_URL: "http://localhost:3000",
       PAYPAL_CLIENT_ID: "test-id",
       PAYPAL_CLIENT_SECRET: "test-secret",

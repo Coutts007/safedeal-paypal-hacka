@@ -7,6 +7,8 @@ import type { HintedField } from "@/lib/ai/proposal";
 import { ChatFlags, SourceChips } from "../../components/Sources";
 import TermsForm, { type TermsInput } from "../../components/TermsForm";
 import { Button, Card, Field, inputClass, kes, nairobi, Notice } from "../../components/ui";
+import { Extension, HandoverCode, HandoverForm } from "./Delivery";
+import { EvidenceForm, EvidenceList } from "./Evidence";
 import PayButton from "./PayButton";
 
 type Props = {
@@ -165,6 +167,13 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
       </Notice>
       {error && <Notice tone="error">{error}</Notice>}
       {notice && <Notice tone="info">{notice}</Notice>}
+      {view.notes.map((n) => (
+        <Notice key={n} tone="info">
+          {n}
+        </Notice>
+      ))}
+
+      {view.handover.code && <HandoverCode code={view.handover.code} />}
 
       {view.actions.length > 0 && (
         <Card title="What you can do">
@@ -192,6 +201,36 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
                 onHeld={() => void refresh()}
               />
             )}
+            {has("enter_handover") && (
+              <HandoverForm
+                busy={busy === "handover"}
+                attemptsLeft={view.handover.attemptsLeft}
+                onSubmit={(code) =>
+                  act(
+                    "handover",
+                    "handover",
+                    { code },
+                    "Handover confirmed. The buyer now has the inspection window.",
+                  )
+                }
+              />
+            )}
+            {has("simulate_delivery") && (
+              <Button
+                variant="secondary"
+                disabled={!!busy}
+                onClick={() =>
+                  act(
+                    "simulate",
+                    "simulate-delivery",
+                    {},
+                    "Test courier: delivered event sent and verified.",
+                  )
+                }
+              >
+                {busy === "simulate" ? "Sending…" : "Demo: simulate courier delivery"}
+              </Button>
+            )}
             {has("add_tracking") && (
               <TrackingForm
                 busy={busy === "tracking"}
@@ -218,6 +257,27 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
                   )
                 }
               />
+            )}
+            {has("add_evidence") && <EvidenceForm view={view} token={token} onAdded={refresh} />}
+            {has("download_bundle") && (
+              <Button
+                variant="secondary"
+                disabled={!!busy}
+                onClick={async () => {
+                  const res = await fetch(`/api/deals/${view.ref}/bundle`, {
+                    headers: { "x-deal-token": token },
+                  });
+                  if (!res.ok) return setError("Could not build the evidence bundle");
+                  const url = URL.createObjectURL(await res.blob());
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `safedeal-${view.ref}-evidence.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Download the evidence bundle
+              </Button>
             )}
             {has("edit_terms") && !editing && (
               <Button variant="secondary" disabled={!!busy} onClick={() => setEditing(true)}>
@@ -279,6 +339,28 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
       )}
 
       <Deadlines view={view} now={now} />
+
+      <Extension
+        view={view}
+        now={now}
+        busy={busy === "extend"}
+        onPropose={(iso) =>
+          act(
+            "extend",
+            "extend",
+            { action: "propose", newDeliverBy: iso },
+            "New date sent. It applies once the other party accepts.",
+          )
+        }
+        onDecide={(accept) =>
+          act(
+            "extend",
+            "extend",
+            { action: accept ? "accept" : "reject", extensionId: view.extension?.id },
+            accept ? "New delivery date agreed." : "Kept the agreed delivery date.",
+          )
+        }
+      />
 
       {terms && <ChatFlags flags={view.chatFlags} chat={view.chat} />}
 
@@ -350,18 +432,7 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
         </Card>
       )}
 
-      {view.evidence.length > 0 && (
-        <Card title="Shipping">
-          <ul className="flex flex-col gap-2 text-sm">
-            {view.evidence.map((e, i) => (
-              <li key={i}>
-                {e.carrier} tracking <span className="font-mono">{e.trackingNumber}</span>
-                <span className="text-neutral-500"> · {nairobi(e.createdAt)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <EvidenceList view={view} token={token} />
 
       <Card title="History">
         <ol className="flex flex-col gap-1 text-sm">

@@ -26,6 +26,8 @@ export default async function DealPage({ params, searchParams }: Props) {
     timeScale: env.DEMO_TIME_SCALE,
     kesPerUsd: env.KES_PER_USD,
     appBaseUrl: env.APP_BASE_URL,
+    handoverSecret: env.HANDOVER_SECRET,
+    demoMode: env.DEMO_MODE && env.COURIER_MODE === "test",
   });
   return (
     <DealRoom

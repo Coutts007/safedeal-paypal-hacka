@@ -13,15 +13,19 @@ import {
   deals,
   dealTerms,
   evidence,
+  extensions,
   payments,
   reviews,
   type Deal,
   type DealState,
   type ReviewKind,
 } from "@/lib/db/schema";
+import { EVIDENCE_STATES } from "@/lib/deals/evidence";
+import { HANDOVER_MAX_ATTEMPTS, handoverCode } from "@/lib/deals/handover";
 import { newPublicRef, newRoleToken } from "@/lib/deals/ids";
 import { dealTermsSchema, parseDealTerms, termsHash, type DealTerms } from "@/lib/deals/terms";
 import {
+  extensionProblem,
   hardLimit,
   inspectionEndsAt,
   isDeadlineReview,
@@ -205,7 +209,13 @@ export type DealAction =
   | "pay"
   | "add_tracking"
   | "confirm_receipt"
-  | "report_problem";
+  | "report_problem"
+  | "enter_handover"
+  | "propose_extension"
+  | "decide_extension"
+  | "add_evidence"
+  | "simulate_delivery"
+  | "download_bundle";
 
 export type TimelineStep = {
   key: string;
@@ -270,7 +280,12 @@ export const nairobiTime = (d: Date) => NAIROBI.format(d);
 export function statusLine(
   state: DealState,
   role: Role,
-  d: { shipBy: Date | null; inspectionEnds: Date | null; review?: ReviewKind | null },
+  d: {
+    shipBy: Date | null;
+    inspectionEnds: Date | null;
+    review?: ReviewKind | null;
+    handoverLocked?: boolean;
+  },
 ): string {
   const ship = d.shipBy ? nairobiTime(d.shipBy) : "the ship-by time";
   switch (state) {
@@ -285,10 +300,16 @@ export function statusLine(
         ? "PayPal could not hold the money. Try again, perhaps with another funding source."
         : "The buyer's payment did not go through. Waiting for them to try again.";
     case "AUTHORIZED":
+      if (d.handoverLocked) {
+        return "Handover code entry is locked after 5 wrong codes. A SafeDeal reviewer has been alerted; the money stays held.";
+      }
       return role === "buyer"
-        ? `Funds are held by PayPal. If the seller does not add tracking by ${ship}, they will be released to you.`
-        : `Funds are held by PayPal. Ship the item and add tracking by ${ship}, or the hold is released to the buyer.`;
+        ? `Funds are held by PayPal. If the seller does not add tracking or hand the item over by ${ship}, they will be released to you.`
+        : `Funds are held by PayPal. Add tracking, or hand the item over and enter the buyer's code, by ${ship}. Otherwise the hold is released to the buyer.`;
     case "SHIPPED":
+      if (d.handoverLocked) {
+        return "Handover code entry is locked after 5 wrong codes. A SafeDeal reviewer has been alerted; the money stays held.";
+      }
       return role === "buyer"
         ? "The seller has shipped. When it arrives, confirm receipt to pay them, or report a problem."
         : "Shipped. You are paid when the buyer confirms receipt, or after a verified delivery and the inspection window.";
@@ -301,10 +322,20 @@ export function statusLine(
         : `Delivered. You are paid when the buyer confirms, or automatically after ${end} if they raise no problem.`;
     }
     case "IN_REVIEW":
-      if (d.review === "deliver_by" || d.review === "day_26") {
+      if (d.review === "deliver_by") {
         return role === "buyer"
-          ? "The delivery date passed without proof of delivery. The money stays held: if you have the item, confirm receipt to pay the seller; otherwise a reviewer decides."
-          : "The delivery date passed without a verified delivery. The money stays held: you are paid if the buyer confirms receipt or the courier confirms delivery; otherwise a reviewer decides.";
+          ? "The delivery date passed without proof of delivery. The money stays held: if you have the item, confirm receipt to pay the seller. If the courier is just late, you can both agree a new date. Otherwise a reviewer decides."
+          : "The delivery date passed without a verified delivery. The money stays held: you are paid if the buyer confirms receipt, the courier confirms delivery or you enter the handover code. If the courier is just late, propose a new date. Otherwise a reviewer decides.";
+      }
+      if (d.review === "day_26") {
+        return role === "buyer"
+          ? "PayPal's hold is close to its time limit, so a SafeDeal reviewer is checking this deal. If you have the item, confirm receipt to pay the seller."
+          : "PayPal's hold is close to its time limit, so a SafeDeal reviewer is checking this deal. You are paid if the buyer confirms receipt or delivery is verified.";
+      }
+      if (d.review === "buyer_problem") {
+        return role === "buyer"
+          ? "You reported a problem. The money stays held while a SafeDeal reviewer checks the evidence. Add photos or notes below to help."
+          : "The buyer reported a problem. The money stays held while a SafeDeal reviewer checks the evidence. Add photos or notes below to help; you are paid if the claim does not hold up.";
       }
       return "A SafeDeal reviewer is looking at this deal. The money stays held until they decide.";
     case "CAPTURED":
@@ -313,12 +344,16 @@ export function statusLine(
       return "PayPal refused the payment to the seller. A reviewer has been alerted; the money is still held.";
     case "VOIDED":
       return role === "buyer"
-        ? "The hold was released. You have not been charged."
-        : "The hold was released to the buyer.";
+        ? "The hold was released, so you have not been charged. If you paid by card, the hold can take a few days to disappear from your statement. There is nothing to dispute."
+        : "The hold was released to the buyer, so this deal was not paid.";
     case "EXPIRED":
-      return "PayPal's hold ended before the deal finished. The buyer has not been charged.";
+      return role === "buyer"
+        ? "PayPal's hold ended before the deal finished, so the money is released back to you. You have not been charged."
+        : "PayPal's hold ended before the deal finished. The money went back to the buyer; this deal was not paid.";
     case "DISPUTED":
-      return "The buyer opened a PayPal dispute. PayPal will decide.";
+      return role === "buyer"
+        ? "You opened a PayPal dispute. PayPal will decide."
+        : "The buyer opened a PayPal dispute. Download the evidence bundle below and upload it in PayPal's Resolution Center.";
     case "CLOSED":
       return "The PayPal dispute is closed.";
     case "CANCELLED":
@@ -334,13 +369,33 @@ const AUDIT_LABELS: Record<string, string> = {
   "state.changed": "Status changed",
   "paypal.failed": "PayPal refused a request",
   "paypal.pending": "Waiting for PayPal",
+  "evidence.added": "Evidence added",
+  "handover.locked": "Handover code locked after 5 wrong codes",
+  "handover.unlocked": "Handover code unlocked by a reviewer",
+  "extension.expired": "New delivery date proposal expired",
+  "trigger.accepted": "",
+};
+
+/** Accepted triggers that change nothing but are worth showing (date changes). */
+const TRIGGER_LABELS: Record<string, string> = {
+  EXTENSION_PROPOSED: "New delivery date proposed",
+  EXTENSION_ACCEPTED: "New delivery date agreed",
+  EXTENSION_REJECTED: "New delivery date rejected",
 };
 
 export async function dealView(
   db: Db,
   deal: Deal,
   role: Role,
-  opts: { now: Date; timeScale: number; kesPerUsd: number; appBaseUrl: string },
+  opts: {
+    now: Date;
+    timeScale: number;
+    kesPerUsd: number;
+    appBaseUrl: string;
+    /** HANDOVER_SECRET: needed to show the buyer their code. */
+    handoverSecret?: string;
+    demoMode?: boolean;
+  },
 ) {
   const [latest] = await db
     .select()
@@ -375,9 +430,12 @@ export async function dealView(
       ?.instruction_flags ?? [];
   const ev = await db
     .select({
+      id: evidence.id,
       type: evidence.type,
+      addedBy: evidence.addedBy,
       carrier: evidence.carrier,
       trackingNumber: evidence.trackingNumber,
+      note: evidence.note,
       createdAt: evidence.createdAt,
     })
     .from(evidence)
@@ -391,6 +449,15 @@ export async function dealView(
     .select({ kind: reviews.kind })
     .from(reviews)
     .where(and(eq(reviews.dealId, deal.id), isNull(reviews.decision)))
+    .limit(1);
+  const [openExtension] = await db
+    .select({
+      id: extensions.id,
+      proposedBy: extensions.proposedBy,
+      newDeliverBy: extensions.newDeliverBy,
+    })
+    .from(extensions)
+    .where(and(eq(extensions.dealId, deal.id), eq(extensions.status, "proposed")))
     .limit(1);
   const history = await db
     .select({
@@ -431,6 +498,27 @@ export async function dealView(
   if (role === "seller" && (s === "AUTHORIZED" || s === "SHIPPED")) {
     if (s === "SHIPPED" || !deal.shipBy || opts.now < deal.shipBy) actions.push("add_tracking");
   }
+  // Handover: the buyer sees the code until delivery is proven; the seller can enter it.
+  const handoverOpen =
+    !deal.deliveredAt && (s === "AUTHORIZED" || s === "SHIPPED" || isDeadlineReview(snap));
+  const canShowCode = handoverOpen && Boolean(opts.handoverSecret);
+  if (role === "seller" && canShowCode && !deal.handoverLocked) actions.push("enter_handover");
+  // Extend delivery date: either party proposes; the other accepts or rejects.
+  const extendable = !extensionProblem(snap, new Date(opts.now.getTime() + 60_000), opts.now, t);
+  if (extendable) {
+    if (openExtension && openExtension.proposedBy !== role) actions.push("decide_extension");
+    else actions.push("propose_extension");
+  }
+  if (EVIDENCE_STATES.includes(s)) actions.push("add_evidence");
+  if (
+    opts.demoMode &&
+    snap.hasTracking &&
+    !deal.deliveredAt &&
+    (s === "SHIPPED" || isDeadlineReview(snap))
+  ) {
+    actions.push("simulate_delivery");
+  }
+  if (s === "CAPTURED" || s === "DISPUTED" || s === "CLOSED") actions.push("download_bundle");
   if (
     role === "buyer" &&
     (s === "AUTHORIZED" || s === "SHIPPED" || s === "DELIVERED" || isDeadlineReview(snap))
@@ -454,6 +542,7 @@ export async function dealView(
       shipBy: deal.shipBy,
       inspectionEnds,
       review: snap.openReview,
+      handoverLocked: deal.handoverLocked && handoverOpen,
     }),
     names: { seller: deal.sellerName, buyer: deal.buyerName },
     terms,
@@ -476,21 +565,71 @@ export async function dealView(
       holdEndsAt: hardLimit(snap, t)?.toISOString() ?? null,
     },
     paymentStatus: payment?.status ?? null,
-    evidence: ev.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+    evidence: ev.map((e) => ({
+      ...e,
+      createdAt: e.createdAt.toISOString(),
+      // Same-origin path; the Deal Room adds the party's token.
+      photoPath: e.type === "photo" ? `/api/deals/${deal.publicRef}/photos/${e.id}` : null,
+    })),
+    handover: {
+      // Only the buyer ever sees the code, and only until delivery is proven.
+      code:
+        role === "buyer" && canShowCode
+          ? handoverCode(deal.id, opts.handoverSecret as string)
+          : null,
+      open: canShowCode,
+      locked: deal.handoverLocked,
+      attemptsLeft: Math.max(0, HANDOVER_MAX_ATTEMPTS - deal.handoverAttempts),
+      proof: deal.deliveryProof,
+    },
+    extension: openExtension
+      ? {
+          id: openExtension.id,
+          proposedBy: openExtension.proposedBy,
+          newDeliverBy: openExtension.newDeliverBy.toISOString(),
+        }
+      : null,
+    /** Latest date a new deliver-by may have (day 26 of the hold), for the date picker. */
+    extensionLimit: extendable ? (reviewAt(snap, t)?.toISOString() ?? null) : null,
+    notes: partyNotes(deal, role, opts.now),
     timeline: timeline(s),
     actions,
-    history: history.map((h) => ({
-      at: h.at.toISOString(),
-      actor: h.actor,
-      label:
-        h.action === "state.changed"
-          ? `${String((h.details as { from?: string }).from)} → ${String((h.details as { to?: string }).to)}`
-          : AUDIT_LABELS[h.action],
-    })),
+    history: history
+      .map((h) => ({
+        at: h.at.toISOString(),
+        actor: h.actor,
+        label:
+          h.action === "state.changed"
+            ? `${String((h.details as { from?: string }).from)} → ${String((h.details as { to?: string }).to)}`
+            : h.action === "trigger.accepted"
+              ? (TRIGGER_LABELS[String((h.details as { trigger?: string }).trigger)] ?? "")
+              : AUDIT_LABELS[h.action],
+      }))
+      .filter((h) => h.label),
     // Only the seller sees the buyer's link, to send it to them.
     buyerLink: role === "seller" ? dealLinks(opts.appBaseUrl, deal).buyer : null,
     serverTime: opts.now.toISOString(),
   };
+}
+
+/** PayPal guarantees held funds for the first 3 days after authorisation (real time). */
+const HONOUR_PERIOD_MS = 3 * 24 * 3_600_000;
+
+/** Limits worth stating where they apply (BUILD_PLAN 7.1). */
+function partyNotes(deal: Deal, role: Role, now: Date): string[] {
+  const notes: string[] = [];
+  const held = ["DELIVERED", "IN_REVIEW", "CAPTURE_FAILED", "SHIPPED"].includes(deal.state);
+  if (
+    role === "seller" &&
+    held &&
+    deal.authorizedAt &&
+    now.getTime() - deal.authorizedAt.getTime() > HONOUR_PERIOD_MS
+  ) {
+    notes.push(
+      "PayPal guarantees held money only for the first 3 days. Payment after that usually works, but can fail if the buyer's funding source fails.",
+    );
+  }
+  return notes;
 }
 
 export type DealView = Awaited<ReturnType<typeof dealView>>;

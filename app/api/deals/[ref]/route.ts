@@ -12,6 +12,8 @@ export async function GET(req: Request, { params }: RouteCtx) {
     timeScale: env.DEMO_TIME_SCALE,
     kesPerUsd: env.KES_PER_USD,
     appBaseUrl: env.APP_BASE_URL,
+    handoverSecret: env.HANDOVER_SECRET,
+    demoMode: env.DEMO_MODE && env.COURIER_MODE === "test",
   });
   return json(view);
 }

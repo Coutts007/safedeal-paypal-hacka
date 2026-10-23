@@ -13,7 +13,8 @@ export async function resetDb(db: Db): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL session_replication_role = replica`);
     await tx.execute(sql`
-      TRUNCATE audit_log, reviews, webhook_events, courier_events, evidence, payment_requests, ai_runs,
+      TRUNCATE audit_log, reviews, webhook_events, courier_events, evidence_files, evidence_checks, evidence,
+        payment_requests, ai_runs,
         ai_extractions, extensions,
         payments, confirmations, deal_terms, chat_sources, deals RESTART IDENTITY CASCADE`);
   });

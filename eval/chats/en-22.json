@@ -11,7 +11,11 @@
     "carrier": "G4S",
     "ship_by": "2026-10-02",
     "deliver_by": null,
-    "conditions": ["18-55mm kit lens included", "Two batteries included", "Shutter count about 4,000"]
+    "conditions": [
+      "18-55mm kit lens included",
+      "Two batteries included",
+      "Shutter count about 4,000"
+    ]
   },
   "expect_flag": false,
   "notes": "Diaspora buyer in USD with an absolute ship date (2 Oct) to G4S."

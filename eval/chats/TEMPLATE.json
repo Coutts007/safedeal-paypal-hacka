@@ -6,7 +6,10 @@
   "gold": {
     "item": "Short receipt-style name, e.g. Tecno Spark 20 128GB",
     "quantity": "Integer >= 1 (write it as a number, not a string); null only if truly unknowable",
-    "price": { "amount": "Final agreed total with 2 decimals, e.g. 11500.00 (or set price to null if never agreed)", "currency": "KES | USD | OTHER" },
+    "price": {
+      "amount": "Final agreed total with 2 decimals, e.g. 11500.00 (or set price to null if never agreed)",
+      "currency": "KES | USD | OTHER"
+    },
     "delivery_method": "courier | rider | pickup | post | other | null (write null without quotes)",
     "carrier": "Company name if named (G4S, Fargo Courier, Easy Coach, Posta...) else null",
     "ship_by": "YYYY-MM-DD when seller dispatches, resolved against the message date, else null",

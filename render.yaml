@@ -76,6 +76,9 @@ services:
         generateValue: true
       - key: ADMIN_PASSWORD
         sync: false
+      # Derives each deal's handover code. Changing it changes the codes of deals in progress.
+      - key: HANDOVER_SECRET
+        generateValue: true
       # 1 = real time. For the Gate 2 test use e.g. 1440 (a day becomes a minute).
       - key: DEMO_TIME_SCALE
         sync: false
