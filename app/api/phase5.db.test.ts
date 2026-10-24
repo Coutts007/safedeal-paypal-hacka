@@ -9,15 +9,12 @@ import { setEngineDeps } from "@/lib/rules/engine";
 import { fakeModel } from "@/tests/ai";
 import { resetDb } from "@/tests/db";
 import { fakePaypal, TERMS_INPUT, testDeps } from "@/tests/factories";
+import { as, ctx, heldDeal, PNG, req, state, view } from "@/tests/routes";
 import { POST as createDealRoute } from "./deals/route";
-import { GET as getDealRoute } from "./deals/[ref]/route";
-import { POST as authorizeRoute } from "./deals/[ref]/authorize/route";
 import { GET as bundleRoute } from "./deals/[ref]/bundle/route";
-import { POST as confirmRoute } from "./deals/[ref]/confirm/route";
 import { POST as evidenceRoute } from "./deals/[ref]/evidence/route";
 import { POST as extendRoute } from "./deals/[ref]/extend/route";
 import { POST as handoverRoute } from "./deals/[ref]/handover/route";
-import { POST as orderRoute } from "./deals/[ref]/order/route";
 import { POST as photosRoute } from "./deals/[ref]/photos/route";
 import { GET as photoRoute } from "./deals/[ref]/photos/[id]/route";
 import { POST as receiptRoute } from "./deals/[ref]/receipt/route";
@@ -38,12 +35,6 @@ const db = getDb();
 let fake: ReturnType<typeof fakePaypal>;
 let clock: ReturnType<typeof testDeps>;
 
-// 1×1 PNG.
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-  "base64",
-);
-
 beforeEach(async () => {
   await resetDb(db);
   fake = fakePaypal();
@@ -58,62 +49,6 @@ afterEach(() => {
   resetServerEnvCache();
 });
 afterAll(closeDb);
-
-const req = (method: string, body?: unknown, headers: Record<string, string> = {}) =>
-  new Request("http://localhost/api/x", {
-    method,
-    headers: { "content-type": "application/json", ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-const ctx = (ref: string) => ({ params: Promise.resolve({ ref }) });
-const as = (token: string) => ({ "x-deal-token": token });
-
-type View = {
-  state: string;
-  termsHash: string;
-  termsVersion: number;
-  actions: string[];
-  handover: { code: string | null; attemptsLeft: number; locked: boolean };
-  extension: { id: string; proposedBy: string } | null;
-  evidence: { id: string; type: string; photoPath: string | null; addedBy: string }[];
-};
-
-async function view(ref: string, token: string) {
-  const res = await getDealRoute(req("GET", undefined, as(token)), ctx(ref));
-  return (await res.json()) as View;
-}
-
-/** A deal through the routes to AUTHORIZED (and SHIPPED with `ship`). */
-async function heldDeal(opts: { ship?: boolean; deliveryMethod?: string } = {}) {
-  const created = await createDealRoute(
-    req("POST", {
-      sellerName: "David",
-      buyerName: "Shemaya",
-      terms: { ...TERMS_INPUT, deliveryMethod: opts.deliveryMethod ?? "courier" },
-    }),
-  );
-  const { ref, links } = (await created.json()) as { ref: string; links: Record<string, string> };
-  const token = (l: string) => decodeURIComponent(new URL(l).searchParams.get("t") as string);
-  const d = { ref, seller: token(links.seller), buyer: token(links.buyer) };
-  const { termsHash } = await view(d.ref, d.seller);
-  await confirmRoute(req("POST", { termsHash }, as(d.seller)), ctx(d.ref));
-  await confirmRoute(req("POST", { termsHash }, as(d.buyer)), ctx(d.ref));
-  const order = (await (await orderRoute(req("POST", {}, as(d.buyer)), ctx(d.ref))).json()) as {
-    id: string;
-  };
-  await authorizeRoute(req("POST", { orderId: order.id }, as(d.buyer)), ctx(d.ref));
-  if (opts.ship) {
-    await evidenceRoute(
-      req("POST", { carrier: "G4S", trackingNumber: "G4S-777" }, as(d.seller)),
-      ctx(d.ref),
-    );
-  }
-  const [row] = await db.select().from(deals).where(eq(deals.publicRef, ref));
-  return { ...d, id: row.id };
-}
-
-const state = async (id: string) =>
-  (await db.select().from(deals).where(eq(deals.id, id)))[0].state;
 
 describe("handover code through the Deal Room", () => {
   it("only the buyer sees the code; the seller enters it; wrong codes count down", async () => {

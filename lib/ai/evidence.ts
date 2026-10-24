@@ -2,13 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { apiErrorDetail, type AiRunLog, type ModelCall, type ModelReply } from "./extract";
 import { redact } from "./redact";
+import { neutralise } from "./untrusted";
 
 // Evidence check (BUILD_PLAN 8.3 `evidence.ts`): compare the confirmed terms with the evidence and
 // return a label with reasons, for the human reviewer only. The rule engine never reads it (a test
 // enforces that lib/rules imports nothing from lib/ai). Notes, captions and photos are untrusted:
 // they can only be described, never obeyed.
 
-export const EVIDENCE_PROMPT_VERSION = "evidence-v1";
+export const EVIDENCE_PROMPT_VERSION = "evidence-v2";
 
 export const evidenceCheckSchema = z.object({
   label: z.enum(["consistent", "inconsistent", "uncertain"]),
@@ -78,9 +79,9 @@ function describe(item: EvidenceItem): string {
     case "courier_event":
       return `[${item.id}] ${item.at} verified courier event: ${item.status}`;
     case "note":
-      return `[${item.id}] ${item.at} note from the ${item.by}: <note>${redact(item.text).text}</note>`;
+      return `[${item.id}] ${item.at} note from the ${item.by}: <note>${neutralise(redact(item.text).text)}</note>`;
     case "photo":
-      return `[${item.id}] ${item.at} photo from the ${item.by}${item.caption ? `, caption: <caption>${redact(item.caption).text}</caption>` : ""}${item.image ? " (image follows)" : " (image not available)"}`;
+      return `[${item.id}] ${item.at} photo from the ${item.by}${item.caption ? `, caption: <caption>${neutralise(redact(item.caption).text)}</caption>` : ""}${item.image ? " (image follows)" : " (image not available)"}`;
   }
 }
 

@@ -1,7 +1,7 @@
 // The extraction prompt. Bump PROMPT_VERSION on any change: it is logged with every AI call and
 // recorded with each evaluation run, so scores can be compared across versions.
 
-export const PROMPT_VERSION = "extract-v2";
+export const PROMPT_VERSION = "extract-v3";
 
 export const SYSTEM_PROMPT = `You read a chat between a buyer and a seller in Kenya and fill in the deal terms they agreed, for SafeDeal, a pay-on-proof service. Your output is only a proposal: both people check and confirm every field before any money moves.
 
