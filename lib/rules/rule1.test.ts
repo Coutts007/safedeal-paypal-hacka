@@ -12,6 +12,7 @@ const ROOT = join(__dirname, "..", "..");
 const SKIP_DIRS = new Set([
   "node_modules",
   ".next",
+  ".next-e2e",
   ".git",
   "drizzle",
   "docs",
@@ -28,7 +29,9 @@ function sourceFiles(dir = ROOT): string[] {
   });
 }
 
-const isTest = (f: string) => /\.test\.ts$/.test(f) || f.startsWith("tests/");
+// Test code, including the end-to-end fake PayPal (e2e/fake-paypal.mjs), which serves these URLs.
+const isTest = (f: string) =>
+  /\.test\.ts$/.test(f) || f.startsWith("tests/") || f.startsWith("e2e/");
 const files = sourceFiles().filter((f) => !isTest(f));
 
 describe("rule 1: only the rule engine moves money", () => {
