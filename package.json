@@ -26,7 +26,8 @@
     "dev:poll": "WATCHPACK_POLLING=true next dev",
     "db:seed": "tsx scripts/seed.ts",
     "eval": "tsx scripts/eval.ts",
-    "eval:injection": "tsx scripts/eval-injection.ts"
+    "eval:injection": "tsx scripts/eval-injection.ts",
+    "demo:reset": "tsx scripts/demo-reset.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",
