@@ -113,14 +113,20 @@ test("void path: the seller never ships, the sweep releases the hold after ship-
   await page.goto(d.seller);
   await expect(status(page)).toContainText("The hold was released to the buyer");
 
-  const calls = await fakeCalls(request);
+  // Earlier tests may leave other held deals that this sweep also (rightly) voids: count this
+  // deal's hold only.
+  const auth = (await fakeAuths(request)).find((a) => a.ref === d.ref);
+  const own = (path: string) => path.startsWith(`/v2/payments/authorizations/${auth?.id}/`);
+  const calls = (await fakeCalls(request)).filter((c) => own(c.path));
   const voids = calls.filter((c) => c.path.endsWith("/void"));
   expect(voids).toHaveLength(1);
   expect(voids[0].requestId).toMatch(VOID_ID);
   expect(calls.filter((c) => c.path.endsWith("/capture"))).toEqual([]);
   // A second sweep does not void again.
   await sweep(request);
-  expect((await fakeCalls(request)).filter((c) => c.path.endsWith("/void"))).toHaveLength(1);
+  expect(
+    (await fakeCalls(request)).filter((c) => own(c.path) && c.path.endsWith("/void")),
+  ).toHaveLength(1);
 });
 
 test("duplicate webhook: a verified PayPal event acts once; the repeat and a forged one do nothing", async ({

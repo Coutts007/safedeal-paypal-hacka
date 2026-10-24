@@ -4,7 +4,7 @@ import { E2E_ENV, FAKE_PAYPAL, SDK_URL } from "./env";
 // Shared steps for the end-to-end tests.
 
 export type FakeCall = { method: string; path: string; requestId: string | null; body: unknown };
-export type FakeAuth = { id: string; status: string; orderId: string };
+export type FakeAuth = { id: string; status: string; orderId: string; ref: string };
 
 export const SELLER_EMAIL = "seller-a@business.example.com";
 

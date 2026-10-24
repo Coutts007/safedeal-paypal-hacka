@@ -86,6 +86,8 @@ function handle(method, path, body) {
       id: id("AUTH"),
       status: "CREATED",
       orderId: o.id,
+      /** The deal's public ref (reference_id), so a test can find its own hold. */
+      ref: o.body.purchase_units[0].reference_id,
       amount: o.body.purchase_units[0].amount,
       expiresAt: new Date(Date.now() + 29 * DAY).toISOString(),
     };
@@ -131,7 +133,11 @@ function control(method, path, body) {
   if (method === "GET" && path === "/__auths") {
     return {
       status: 200,
-      json: [...state.auths.values()].map((a) => ({ ...authJson(a), orderId: a.orderId })),
+      json: [...state.auths.values()].map((a) => ({
+        ...authJson(a),
+        orderId: a.orderId,
+        ref: a.ref,
+      })),
     };
   }
   const m = path.match(/^\/__auths\/([^/]+)$/);
