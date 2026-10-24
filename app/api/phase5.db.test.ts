@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { PDFDocument } from "pdf-lib";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setEvidenceModel } from "@/lib/ai/evidence-service";
 import { SIGNATURE_HEADER, testCourierEvent } from "@/lib/courier/webhook";
@@ -329,17 +330,40 @@ describe("reviewer", () => {
 });
 
 describe("evidence bundle", () => {
-  it("is available once paid, and leaves out the reviewer's AI advice", async () => {
+  it("is a readable PDF once paid, with the photos; JSON on request; no AI advice", async () => {
     const d = await heldDeal({ ship: true });
     expect((await bundleRoute(req("GET", undefined, as(d.seller)), ctx(d.ref))).status).toBe(409);
+    const photo = new FormData();
+    photo.set("file", new Blob([new Uint8Array(PNG)]), "box.png");
+    photo.set("caption", "Packed phone");
+    const uploaded = await photosRoute(
+      new Request("http://localhost/x", { method: "POST", headers: as(d.seller), body: photo }),
+      ctx(d.ref),
+    );
+    expect(uploaded.status).toBe(201);
     await receiptRoute(req("POST", { action: "confirm" }, as(d.buyer)), ctx(d.ref));
-    const res = await bundleRoute(req("GET", undefined, as(d.seller)), ctx(d.ref));
+
+    const res = await bundleRoute(req("GET", undefined, as(d.buyer)), ctx(d.ref));
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-disposition")).toContain("attachment");
-    const bundle = (await res.json()) as Record<string, unknown>;
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("content-disposition")).toBe(
+      `attachment; filename="safedeal-${d.ref}-evidence.pdf"`,
+    );
+    const pdf = await PDFDocument.load(new Uint8Array(await res.arrayBuffer()));
+    expect(pdf.getTitle()).toBe(`SafeDeal evidence bundle, deal ${d.ref}`);
+    expect(Buffer.from(await pdf.save()).toString("latin1")).toContain("/Subtype /Image");
+
+    const json = await bundleRoute(
+      new Request("http://localhost/api/x?format=json", { headers: as(d.seller) }),
+      ctx(d.ref),
+    );
+    expect(json.headers.get("content-type")).toBe("application/json");
+    const bundle = (await json.json()) as Record<string, unknown>;
     expect(bundle).toMatchObject({ state: "CAPTURED", ref: d.ref });
     expect(bundle).not.toHaveProperty("checks");
     expect((bundle.audit as unknown[]).length).toBeGreaterThan(3);
+
+    expect((await bundleRoute(req("GET"), ctx(d.ref))).status).toBeGreaterThanOrEqual(400);
   });
 });
 

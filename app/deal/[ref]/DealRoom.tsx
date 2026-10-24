@@ -271,12 +271,12 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
                   const url = URL.createObjectURL(await res.blob());
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `safedeal-${view.ref}-evidence.json`;
+                  a.download = `safedeal-${view.ref}-evidence.pdf`;
                   a.click();
                   URL.revokeObjectURL(url);
                 }}
               >
-                Download the evidence bundle
+                Download the evidence bundle (PDF)
               </Button>
             )}
             {has("edit_terms") && !editing && (
