@@ -34,3 +34,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:db
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env:
+          E2E_DATABASE_URL: postgres://safedeal:safedeal@localhost:5432/safedeal_e2e

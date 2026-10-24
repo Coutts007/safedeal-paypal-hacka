@@ -1,3 +1,5 @@
+import { neutralise } from "./untrusted";
+
 // Split a pasted chat (WhatsApp export or plain lines) into numbered messages [m1], [m2] … so the
 // AI can cite which message each deal field came from, and the Deal Room can show that message.
 
@@ -46,14 +48,16 @@ export function parseChat(raw: string): ChatMessage[] {
   return out.slice(0, MAX_MESSAGES).map((msg, i) => ({ id: `m${i + 1}`, ...msg }));
 }
 
-/** The chat as the AI sees it: one line per message, prefixed with its id. */
+/** The chat as the AI sees it: one message per entry, prefixed with its id. */
 export function formatForModel(messages: ChatMessage[]): string {
   return messages
     .map((m) => {
       const head = [m.at && `(${m.at.replace("T", " ")})`, m.from && `${m.from}:`]
         .filter(Boolean)
         .join(" ");
-      return `[${m.id}] ${head ? `${head} ` : ""}${m.text}`;
+      // Continuation lines are indented, so only SafeDeal's own lines start with "[m…]".
+      const text = neutralise(m.text).replace(/\n/g, "\n    ");
+      return `[${m.id}] ${head ? `${head} ` : ""}${text}`;
     })
     .join("\n");
 }

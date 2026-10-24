@@ -34,6 +34,8 @@ function loadScript(src: string): Promise<void> {
 const MESSAGES: Record<string, string> = {
   INSTRUMENT_DECLINED:
     "PayPal declined that funding source. Please try again with another card or account.",
+  TRANSACTION_REFUSED:
+    "PayPal refused this payment. Try again with another funding source or PayPal account, or a smaller amount.",
   ERR_INVALID_CLIENT_TOKEN: "The PayPal session expired. Reload the page and try again.",
   NETWORK_ERROR: "Network problem while talking to PayPal. Check your connection and try again.",
 };
