@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { proposalSummary, type Proposal } from "@/lib/ai/proposal";
 import type { ReadChatResponse } from "@/lib/ai/service";
 import { ChatFlags } from "./components/Sources";
 import TermsForm, { EMPTY_TERMS, type TermsInput } from "./components/TermsForm";
@@ -176,13 +177,7 @@ export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
           {proposal && (
             <>
               <ChatFlags flags={proposal.flags} chat={reading?.messages ?? []} />
-              <Notice tone="info">
-                The AI filled in what it found in the chat. Check each field: tap “From chat” to see
-                the message it came from.
-                {proposal.missing.length > 0 &&
-                  ` Not found in the chat: ${proposal.missing.join(", ").replaceAll("_", " ")}.`}
-                {proposal.notes && ` ${proposal.notes}`}
-              </Notice>
+              <ReadingSummary proposal={proposal} />
             </>
           )}
           <TermsForm
@@ -210,5 +205,40 @@ export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
         </div>
       )}
     </Card>
+  );
+}
+
+const list = (xs: string[]) =>
+  xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? "");
+
+/** What the AI filled in, and the few things left for the seller. */
+function ReadingSummary({ proposal }: { proposal: Proposal }) {
+  const { filled, needsYou, check, notMentioned } = proposalSummary(proposal);
+  return (
+    <Notice tone="info">
+      <span className="flex flex-col gap-1">
+        <span>
+          The AI filled in {filled} {filled === 1 ? "field" : "fields"} from the chat. Tap “See
+          message” on a field to see where it came from.
+        </span>
+        {needsYou.length > 0 && (
+          <span>
+            <span className="font-medium">Needs you:</span> {list(needsYou)}.
+          </span>
+        )}
+        {check.length > 0 && (
+          <span>
+            <span className="font-medium">Worth a look:</span> {list(check)}.
+          </span>
+        )}
+        {notMentioned.length > 0 && (
+          <span>
+            <span className="font-medium">Not in the chat:</span> {list(notMentioned)}. Fill in if
+            you agreed one; dates can stay blank.
+          </span>
+        )}
+        {proposal.notes && <span>{proposal.notes}</span>}
+      </span>
+    </Notice>
   );
 }

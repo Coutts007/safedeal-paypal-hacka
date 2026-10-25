@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { extraction } from "@/tests/ai";
-import { carrySourceRefs, sourceRefs, toProposal } from "./proposal";
+import { carrySourceRefs, proposalSummary, sourceRefs, toProposal } from "./proposal";
 
 describe("toProposal", () => {
-  it("converts a KES price for the seller to check, and marks it low confidence", () => {
+  it("converts a KES price for the seller to confirm, keeping the AI's own confidence", () => {
     const p = toProposal(extraction(), 130);
     expect(p.terms.price).toEqual({ amount: "95.00", currency: "USD" });
     expect(p.chatPrice).toEqual({ amount: "12350.00", currency: "KES" });
-    expect(p.hints.price).toMatchObject({ confidence: "low", sources: ["m3"] });
-    expect(p.hints.price?.note).toContain("KES 12,350");
+    // Read correctly from the chat, so not shown as the AI being unsure; the seller confirms
+    // the US$ amount because SafeDeal converted it.
+    expect(p.hints.price).toMatchObject({ confidence: "high", action: "set_usd", sources: ["m3"] });
+    expect(p.hints.price?.note).toBe(
+      "The chat says KES 12,350. That is about US$95.00 at 130 KES per US$. PayPal charges in US$, so confirm the amount.",
+    );
     expect(p.terms).toMatchObject({
       item: "Samsung Galaxy A15",
       deliveryMethod: "courier",
@@ -29,11 +33,39 @@ describe("toProposal", () => {
       130,
     );
     expect(p.terms.price.amount).toBe("95.00");
-    expect(p.hints.price).toMatchObject({ confidence: "high" });
-    expect(p.hints.deliveryMethod).toMatchObject({
-      confidence: "low",
-      note: "Not settled in the chat.",
+    expect(p.hints.price).toEqual({ sources: ["m3"], confidence: "high" });
+    expect(p.hints.deliveryMethod).toMatchObject({ action: "fill_in", sources: [] });
+  });
+});
+
+describe("proposalSummary", () => {
+  it("counts the fields read from the chat and names what needs the seller", () => {
+    const p = toProposal(
+      extraction({
+        delivery_method: { value: null, sources: [], confidence: "low" },
+        ship_by: { value: "2026-11-03T18:00:00+03:00", sources: ["m4"], confidence: "medium" },
+        missing_fields: ["delivery_method", "deliver_by"],
+      }),
+      130,
+    );
+    expect(proposalSummary(p)).toEqual({
+      filled: 5, // item, quantity, price, carrier, ship-by
+      needsYou: ["confirm the US$ price (the chat was in KES)", "choose the delivery method"],
+      check: ["ship-by date"],
+      notMentioned: ["deliver-by date"],
     });
+  });
+
+  it("asks for nothing when every field was read clearly in US$", () => {
+    const p = toProposal(
+      extraction({
+        price: { amount: "95", currency: "USD", sources: ["m3"], confidence: "high" },
+        ship_by: { value: "2026-11-03T18:00:00+03:00", sources: ["m4"], confidence: "high" },
+        missing_fields: [],
+      }),
+      130,
+    );
+    expect(proposalSummary(p)).toMatchObject({ needsYou: [], check: [], notMentioned: [] });
   });
 });
 

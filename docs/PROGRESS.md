@@ -163,6 +163,17 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
   and B, B with a short ship-by; never moves money. `docs/DEMO_SCRIPT.md`: scene-by-scene video
   script with the chat to paste.
 
+### After Phase 6 (2026-10-25, branch `evidence-bundle-pdf`)
+
+- Evidence bundle is a readable PDF (summary, terms, PayPal ids, delivery, photos, reviews,
+  worded timeline, chat, audit check); JSON with `?format=json`.
+- `scripts/deal-status.ts`: why a deal has not moved (for the void not happening on Render).
+- "AI: unsure" removed (Peter: it would destroy trust). It came from SafeDeal's own KES rule
+  (31 of 32 chats), not the AI. Markers now say what to do: "Matches the chat", "Check this",
+  "Confirm the US$ price", "Not in the chat"; never red. The Deal Room shows only message links.
+  A summary above the form lists what needs the seller. Prompt `extract-v4` recalibrated: "Check
+  this" in 8 of 43 chats (was 36), every field still right; eval 91.4% F1, injection 30/30.
+
 ## Blocked / waiting on Peter
 
 - Phone test: fund a deal on his phone (sandbox) and report any problems.

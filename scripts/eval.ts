@@ -9,6 +9,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   add,
+  calibration,
   goldChatSchema,
   metrics,
   SCORED_FIELDS,
@@ -136,6 +137,12 @@ function report(rows: Row[]) {
     }),
   );
 
+  const calibrated = calibration(rows);
+  console.log("\n| AI confidence | Fields filled | Right |\n| --- | --- | --- |");
+  for (const [level, c] of Object.entries(calibrated)) {
+    console.log(`| ${level} | ${c.filled} | ${c.filled ? pct(c.right / c.filled) : "-"} |`);
+  }
+
   const flagCorrect = rows.filter((r) => r.score.flagCorrect).length;
   const failed = rows.filter((r) => r.status !== "ok").length;
   const tokens = rows
@@ -162,6 +169,7 @@ function report(rows: Row[]) {
         byField,
         all,
         byLanguage,
+        calibration: calibrated,
         flagCorrect,
         failed,
         tokens,
