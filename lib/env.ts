@@ -8,6 +8,8 @@ const serverEnvSchema = z.object({
   PAYPAL_CLIENT_SECRET: z.string().min(1),
   PAYPAL_WEBHOOK_ID: z.string().default(""),
   PAYPAL_API_BASE: z.string().url().default("https://api-m.sandbox.paypal.com"),
+  // Log in with PayPal sign-in page (Phase 6b). The e2e tests point it at the fake PayPal.
+  PAYPAL_CONNECT_URL: z.string().url().default("https://www.sandbox.paypal.com/connect"),
   DATABASE_URL: z.string().min(1),
   LLM_PROVIDER: z.string().default("anthropic"),
   LLM_API_KEY: z.string().default(""),
@@ -52,8 +54,11 @@ export function parseServerEnv(source: EnvSource): ServerEnv {
     const names = result.error.issues.map((i) => i.path.join(".")).join(", ");
     throw new Error(`Invalid or missing environment variables: ${names}`);
   }
-  if (result.data.PAYPAL_API_BASE.includes("api-m.paypal.com")) {
-    throw new Error("Live PayPal API base is not allowed. SafeDeal runs on the sandbox only.");
+  if (
+    result.data.PAYPAL_API_BASE.includes("api-m.paypal.com") ||
+    result.data.PAYPAL_CONNECT_URL.startsWith("https://www.paypal.com")
+  ) {
+    throw new Error("Live PayPal URLs are not allowed. SafeDeal runs on the sandbox only.");
   }
   return result.data;
 }

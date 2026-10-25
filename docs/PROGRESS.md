@@ -1,12 +1,12 @@
 # Progress
 
-_Last updated: 2026-10-24 (Nairobi)_
+_Last updated: 2026-10-25 (Nairobi)_
 
 ## Current phase
 
-**Phase 6: Evaluation, security tests and polish**: built on branch `phase-6-eval-security`.
-**STOP FOR PETER**: fund a deal on his phone, finish Gate 3, record the demo video (see "Next
-step").
+**Phase 6b: Seller accounts and dashboard**: built on branch `phase-6b-seller-dashboard`.
+**STOP FOR PETER**: enable Log in with PayPal on the sandbox app and log in on Render (see
+"Next step").
 
 ## Done
 
@@ -174,6 +174,22 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
   A summary above the form lists what needs the seller. Prompt `extract-v4` recalibrated: "Check
   this" in 8 of 43 chats (was 36), every field still right; eval 91.4% F1, injection 30/30.
 
+### Phase 6b (2026-10-25, branch `phase-6b-seller-dashboard`)
+
+- Log in with PayPal (sandbox) for sellers: `/login`, `/api/auth/paypal/start` and `/callback`
+  (state cookie against forged logins), `lib/paypal/identity.ts` (code → token → userinfo, the
+  token used once and never stored). Signed 8-hour session cookie; no new secret.
+- `accounts` table; deals gain an owner and `archived_at` (migration `0006_seller_accounts`).
+  At login, earlier link-only deals paying out to the account's PayPal email are added.
+- `/dashboard`: totals (on hold, paid to you, deals), tabs Needs you / In progress / Finished /
+  Archived, each deal with the one thing to do next and its next date; Open goes to the Deal
+  Room as the seller. Archive and unarchive finished deals (hidden only, audited).
+- `/dashboard/new`: the usual create form; the deal pays out to the logged-in PayPal account
+  and that payee cannot be changed later by either side.
+- Buyers are unchanged: they use their private link and never log in.
+- Tests: 16 unit, 9 database, 2 e2e (whole seller flow; forged login), axe and 360 px checks on
+  the new pages. Download and copy buttons fixed (they turned white; now show progress).
+
 ## Blocked / waiting on Peter
 
 - Phone test: fund a deal on his phone (sandbox) and report any problems.
@@ -185,7 +201,13 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 - To confirm: handover code derived from a secret (DECISIONS 2026-10-23); refusal fallback on.
 - Render upgrade to paid plans by 9 November.
 
+- Log in with PayPal on the sandbox app (Phase 6b): Return URL
+  `https://safedeal-4abv.onrender.com/api/auth/paypal/callback`, then a login on Render.
+- Why a deal past ship-by was not voided on Render: the `scripts/deal-status.ts` output or the
+  cron log.
+
 ## Next step
 
-Peter merges `phase-6-eval-security`, does the phone test and Gate 3 leftovers on Render, and
-records the video. Then Phase 7 (submission package, 9 to 11 November) after his approval.
+Peter enables Log in with PayPal, merges `phase-6b-seller-dashboard` and logs in on Render. Then
+the phone test, Gate 3 leftovers and the video; Phase 7 (submission package, 9 to 11 November)
+after his approval.

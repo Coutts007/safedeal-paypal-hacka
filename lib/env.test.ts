@@ -37,4 +37,11 @@ describe("parseServerEnv", () => {
       /sandbox only/,
     );
   });
+
+  it("refuses the live Log in with PayPal page", () => {
+    expect(() =>
+      parseServerEnv({ ...base, PAYPAL_CONNECT_URL: "https://www.paypal.com/connect" }),
+    ).toThrow(/sandbox only/);
+    expect(parseServerEnv(base).PAYPAL_CONNECT_URL).toBe("https://www.sandbox.paypal.com/connect");
+  });
 });

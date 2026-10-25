@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { proposalSummary, type Proposal } from "@/lib/ai/proposal";
 import type { ReadChatResponse } from "@/lib/ai/service";
@@ -18,8 +19,17 @@ const NOT_READ: Record<Exclude<ReadChatResponse["status"], "ok">, string> = {
   refused: "The AI could not read this chat. Fill in the form by hand.",
 };
 
-export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
-  const [sellerName, setSellerName] = useState("");
+/** A seller logged in with PayPal: deals pay out to their verified PayPal email. */
+export type SellerAccount = { name: string | null; email: string };
+
+export default function CreateDeal({
+  kesPerUsd,
+  account,
+}: {
+  kesPerUsd: number;
+  account?: SellerAccount;
+}) {
+  const [sellerName, setSellerName] = useState(account?.name ?? "");
   const [buyerName, setBuyerName] = useState("");
   const [chatText, setChatText] = useState("");
   const [reading, setReading] = useState<ReadChatResponse | null>(null);
@@ -92,6 +102,14 @@ export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
           >
             Open my deal page
           </a>
+          {account && (
+            <Link
+              className="text-center text-sm text-emerald-700 underline dark:text-emerald-400"
+              href="/dashboard"
+            >
+              Back to my deals
+            </Link>
+          )}
         </div>
       </Card>
     );
@@ -172,9 +190,18 @@ export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
               <ReadingSummary proposal={proposal} />
             </>
           )}
+          {account && (
+            <p className="text-sm text-neutral-700 dark:text-neutral-300">
+              Paid to your PayPal account <span className="font-medium">{account.email}</span>.
+            </p>
+          )}
           <TermsForm
             key={reading?.extractionId ?? "manual"}
-            initial={proposal?.terms ?? EMPTY_TERMS}
+            initial={{
+              ...(proposal?.terms ?? EMPTY_TERMS),
+              ...(account && { payeeEmail: account.email }),
+            }}
+            showPayee={!account}
             kesPerUsd={kesPerUsd}
             submitLabel="Create deal"
             busy={busy === "create"}

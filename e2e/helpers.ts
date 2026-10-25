@@ -36,7 +36,31 @@ const path = (link: string) => {
   return `${u.pathname}${u.search}`;
 };
 
-type Deal = { ref: string; seller: string; buyer: string; sellerToken: string; buyerToken: string };
+export type Deal = {
+  ref: string;
+  seller: string;
+  buyer: string;
+  sellerToken: string;
+  buyerToken: string;
+};
+
+/** A deal from the links shown after creating it. */
+export const dealFromLinks = (ref: string, seller: string, buyer: string): Deal => ({
+  ref,
+  seller: path(seller),
+  buyer: path(buyer),
+  sellerToken: tokenOf(seller),
+  buyerToken: tokenOf(buyer),
+});
+
+/** Who signs in at the fake PayPal's Log in with PayPal page next. */
+export async function fakeLoginAs(
+  request: APIRequestContext,
+  profile: { user_id: string; name: string; email: string },
+) {
+  const res = await request.post(`${FAKE_PAYPAL}/__login`, { data: profile });
+  expect(res.ok()).toBe(true);
+}
 
 /** Create a deal through the API (not the subject of the test) with US$95 terms. */
 export async function createDeal(

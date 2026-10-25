@@ -1,7 +1,14 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { E2E_ENV } from "./env";
-import { agree, createDeal, payByApi, resetFakePaypal, stubPaypalSdk } from "./helpers";
+import {
+  agree,
+  createDeal,
+  fakeLoginAs,
+  payByApi,
+  resetFakePaypal,
+  stubPaypalSdk,
+} from "./helpers";
 
 // BUILD_PLAN Phase 6, item 5: every main screen, in the states people actually see, has no WCAG
 // 2.1 A/AA problems axe can detect and no sideways scrolling at 360 px.
@@ -92,4 +99,29 @@ test("reviewer pages", async ({ page, request }) => {
     .click();
   await expect(page.getByRole("heading").first()).toBeVisible();
   await check(page, "reviewer deal page");
+});
+
+test("seller login, dashboard and new deal pages", async ({ page, request }) => {
+  for (const legal of ["/privacy", "/terms"]) {
+    await page.goto(legal);
+    await check(page, legal);
+  }
+  await page.goto("/login");
+  await check(page, "seller login");
+  await page.goto("/login?error=paypal");
+  await check(page, "seller login with an error");
+  await fakeLoginAs(request, {
+    user_id: `a11y-${Date.now()}`,
+    name: "A11y Shop",
+    email: "seller-a@business.example.com",
+  });
+  await page.getByRole("link", { name: "Log in with PayPal" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  for (const tab of ["needs", "active", "done", "archived"]) {
+    await page.goto(`/dashboard?tab=${tab}`);
+    await check(page, `dashboard, ${tab}`);
+  }
+  await page.goto("/dashboard/new");
+  await page.getByRole("button", { name: "Fill in the form by hand instead" }).click();
+  await check(page, "new deal from the dashboard");
 });

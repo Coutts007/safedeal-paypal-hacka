@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { serverEnv } from "@/lib/env";
 import CreateDeal from "./CreateDeal";
 
@@ -14,6 +15,16 @@ export default function Home() {
         </p>
         <p className="text-sm text-neutral-500">
           PayPal sandbox demo. Paste your chat and the AI fills in the deal; you both confirm it.
+        </p>
+        <p className="text-sm">
+          Selling often?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-emerald-700 underline dark:text-emerald-400"
+          >
+            Log in with PayPal
+          </Link>{" "}
+          to keep all your deals in one place.
         </p>
       </header>
       <CreateDeal kesPerUsd={serverEnv().KES_PER_USD} />

@@ -2,6 +2,8 @@
 // the rules SafeDeal relies on: an order is authorised once, a hold is captured or voided once,
 // and a repeated PayPal-Request-Id replays the first answer. Every call is recorded so a test can
 // check what the server sent (amount, payee, request ids). Control routes start with /__.
+// It also plays Log in with PayPal: /connect signs in the seller set with POST /__login at once
+// and sends the browser back with a code; the code buys a user token; the token reads userinfo.
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.FAKE_PAYPAL_PORT ?? 4010);
@@ -11,6 +13,10 @@ const DAY = 24 * 3_600_000;
 // e2e database keeps the ids of earlier tests).
 let n = 0;
 let state;
+/** Log in with PayPal: who signs in at /connect, issued codes and user tokens (kept across resets). */
+let loginAs = { user_id: "e2e-seller", name: "David", email: "seller-a@business.example.com" };
+const codes = new Map();
+const userTokens = new Map();
 function reset() {
   state = {
     orders: new Map(),
@@ -60,6 +66,17 @@ function authJson(a) {
 function handle(method, path, body) {
   let m;
   if (method === "POST" && path === "/v1/oauth2/token") {
+    if (body?.grant_type === "authorization_code") {
+      const profile = codes.get(body.code);
+      if (!profile) return { status: 400, json: { error: "invalid_grant" } };
+      codes.delete(body.code);
+      const token = `user-token-${++n}`;
+      userTokens.set(token, profile);
+      return {
+        status: 200,
+        json: { access_token: token, token_type: "Bearer", expires_in: 28_800 },
+      };
+    }
     return { status: 200, json: { access_token: "fake-access-token", expires_in: 32_400 } };
   }
   if (method === "POST" && path === "/v2/checkout/orders") {
@@ -121,6 +138,10 @@ function handle(method, path, body) {
 }
 
 function control(method, path, body) {
+  if (method === "POST" && path === "/__login") {
+    loginAs = body;
+    return { status: 200, json: { ok: true } };
+  }
   if (method === "GET" && path === "/__calls") return { status: 200, json: state.calls };
   if (method === "POST" && path === "/__reset") {
     reset();
@@ -163,9 +184,42 @@ createServer((req, res) => {
     const path = new URL(req.url, "http://x").pathname;
     let body = null;
     try {
-      body = raw && req.headers["content-type"]?.includes("json") ? JSON.parse(raw) : null;
+      const type = req.headers["content-type"] ?? "";
+      if (raw && type.includes("json")) body = JSON.parse(raw);
+      else if (raw && type.includes("x-www-form-urlencoded")) {
+        body = Object.fromEntries(new URLSearchParams(raw));
+      }
     } catch {
       body = null;
+    }
+    const url = new URL(req.url, "http://x");
+    // Log in with PayPal: the seller "signs in" at once and goes back with a one-time code.
+    if (req.method === "GET" && path === "/connect") {
+      const code = `code-${++n}`;
+      codes.set(code, loginAs);
+      const back = new URL(url.searchParams.get("redirect_uri"));
+      back.searchParams.set("code", code);
+      back.searchParams.set("state", url.searchParams.get("state") ?? "");
+      res.writeHead(302, { Location: back.toString() });
+      res.end();
+      return;
+    }
+    if (req.method === "GET" && path === "/v1/identity/oauth2/userinfo") {
+      const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+      const p = userTokens.get(token);
+      res.writeHead(p ? 200 : 401, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify(
+          p
+            ? {
+                user_id: p.user_id,
+                name: p.name,
+                emails: [{ value: p.email, primary: true, confirmed: true }],
+              }
+            : { error: "invalid_token" },
+        ),
+      );
+      return;
     }
     let reply = path.startsWith("/__") ? control(req.method, path, body) : null;
     if (!reply) {
