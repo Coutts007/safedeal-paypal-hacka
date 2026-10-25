@@ -68,6 +68,8 @@ export type NewDealInput = {
   buyerName: string;
   /** The chat the AI read for this deal, if the seller started from one. */
   extractionId?: string | null;
+  /** The logged-in seller (Phase 6b): the deal is theirs and pays out to their PayPal email. */
+  account?: { id: string; email: string } | null;
 };
 
 /** Agreed dates must still be ahead, and shipping cannot come after delivery. */
@@ -92,7 +94,10 @@ export async function createDeal(
   input: NewDealInput,
   opts: { maxUsd: number; kesPerUsd: number; now: Date },
 ) {
-  const terms = parseDealTerms(input.terms, opts.maxUsd);
+  const typed = input.account
+    ? { ...(input.terms as object), payeeEmail: input.account.email }
+    : input.terms;
+  const terms = parseDealTerms(typed, opts.maxUsd);
   checkTermDates(terms, opts.now);
   const chat = input.extractionId ? await usableExtraction(db, input.extractionId, opts.now) : null;
   if (input.extractionId && !chat) {
@@ -108,6 +113,7 @@ export async function createDeal(
         buyerToken: newRoleToken(),
         sellerName: input.sellerName,
         buyerName: input.buyerName,
+        sellerAccountId: input.account?.id ?? null,
       })
       .returning();
     await tx.insert(dealTerms).values({
@@ -172,6 +178,13 @@ export async function proposeTerms(
       return {
         ok: false,
         reason: "only the seller can change the PayPal email that receives the money",
+      };
+    }
+    // A seller with an account is paid to the PayPal email they logged in with (Phase 6b).
+    if (deal.sellerAccountId && currentPayee && currentPayee !== terms.payeeEmail) {
+      return {
+        ok: false,
+        reason: "this deal pays out to the seller's PayPal account and that cannot be changed",
       };
     }
     if (latest?.hash === hash) return { ok: true, version: latest.version, termsHash: hash };

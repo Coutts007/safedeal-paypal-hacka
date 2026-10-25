@@ -494,6 +494,22 @@ You do:
 1. Fund a deal on his phone and report any problems.
 2. Record the demo video (storyboard in section 10) and a backup take by 8 November. You prepare the demo data and a script of what to say.
 
+### Phase 6b: Seller accounts and dashboard (added 25 October; done by 1 November)
+
+Added at Peter's request (25 October): a business selling to many customers needs one place for all its deals. Sellers only; buyers keep their private link.
+
+You do:
+1. Log in with PayPal (OpenID Connect, sandbox): `/connect` → authorization code → `/v1/oauth2/token` → `/v1/identity/oauth2/userinfo`. A `state` value in a short-lived cookie stops forged logins. SafeDeal never sees a PayPal password and stores no PayPal tokens; it keeps the PayPal user id, verified email and name. A signed, HttpOnly session cookie (SameSite=Lax) for 8 hours.
+2. `accounts` table; `deals.seller_account_id` and `deals.archived_at`. Deals created while logged in belong to the account, and the payout email is the account's verified PayPal email (no typing). On login, earlier deals whose payout email is the account's email are added to it.
+3. `/dashboard`: tabs Needs you, In progress, Finished, Archived; each deal with its item, buyer, amount, status line and next deadline, opening the Deal Room as the seller. Totals on hold and paid out. Create a deal from the dashboard.
+4. Archive and unarchive finished deals only (paid, released, expired, cancelled, closed). Archiving only hides a deal; nothing is deleted, the evidence bundle stays available, and a deal that is disputed later shows in Needs you again. Audited.
+5. The rule engine is unchanged; the dashboard uses the same Deal Room actions. The seller link keeps working for sellers without an account.
+6. Tests: session and state cookies, userinfo parsing, routes (login callback, archive rules, deal ownership), Playwright login → create → pay → ship → archive against the fake PayPal, axe on the new pages.
+
+**STOP FOR PETER.** He must:
+1. In the Developer Dashboard (sandbox app), tick **Log in with PayPal**, open **Advanced Settings**, set the Return URL to `<APP_BASE_URL>/api/auth/paypal/callback`, tick Full name, Email and Account verification status (and PayPal account ID), enter `https://example.com` for the privacy policy and user agreement URLs, and save.
+2. Log in on Render with a sandbox business account and report what he sees.
+
 ### Phase 7: Submission package (9 to 11 November)
 
 You do: finish the README (section 11); add an architecture diagram image (Mermaid exported to PNG or SVG); write the Devpost text (inspiration, what it does, how we built it, challenges, what we learned, what's next, AI tools used and how); check the repo for secrets (search history too); tag release `v1.0-hackathon`.

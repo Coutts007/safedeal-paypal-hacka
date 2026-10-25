@@ -64,6 +64,22 @@ const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date
 const createdAt = () => tstz("created_at").notNull().defaultNow();
 const money = (name: string) => numeric(name, { precision: 10, scale: 2 });
 
+/**
+ * A seller who logged in with PayPal (Phase 6b). Only what PayPal shared at login: no password and
+ * no PayPal tokens are stored. The email is the verified PayPal email deals pay out to.
+ */
+export const accounts = pgTable("accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // PayPal's stable id for the user (userinfo `user_id`); emails can change.
+  paypalUserId: text("paypal_user_id").notNull().unique(),
+  payerId: text("payer_id"),
+  email: text("email").notNull(),
+  name: text("name"),
+  verifiedAccount: boolean("verified_account"),
+  createdAt: createdAt(),
+  lastLoginAt: tstz("last_login_at").notNull().defaultNow(),
+});
+
 export const deals = pgTable("deals", {
   id: uuid("id").primaryKey().defaultRandom(),
   publicRef: text("public_ref").notNull().unique(),
@@ -72,6 +88,11 @@ export const deals = pgTable("deals", {
   state: dealState("state").notNull().default("DRAFT"),
   // Display names shown in the Deal Room; not used for payment.
   sellerName: text("seller_name"),
+  // The seller's account when the deal was made while logged in (or added at login); null for
+  // deals made with the link only.
+  sellerAccountId: uuid("seller_account_id").references(() => accounts.id),
+  // Hidden from the seller's dashboard lists. Display only: never read by the rule engine.
+  archivedAt: tstz("archived_at"),
   buyerName: text("buyer_name"),
   // Set when both parties confirm the same terms hash (no FK: deal_terms references deals).
   confirmedTermsId: uuid("confirmed_terms_id"),
@@ -338,5 +359,6 @@ export const auditLog = pgTable(
 );
 
 export type Deal = typeof deals.$inferSelect;
+export type Account = typeof accounts.$inferSelect;
 export type DealTermsRow = typeof dealTerms.$inferSelect;
 export type AuditRow = typeof auditLog.$inferSelect;

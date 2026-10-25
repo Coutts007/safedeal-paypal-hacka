@@ -16,6 +16,6 @@ export async function resetDb(db: Db): Promise<void> {
       TRUNCATE audit_log, reviews, webhook_events, courier_events, evidence_files, evidence_checks, evidence,
         payment_requests, ai_runs,
         ai_extractions, extensions,
-        payments, confirmations, deal_terms, chat_sources, deals RESTART IDENTITY CASCADE`);
+        payments, confirmations, deal_terms, chat_sources, deals, accounts RESTART IDENTITY CASCADE`);
   });
 }
