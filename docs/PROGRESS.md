@@ -176,7 +176,7 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 
 ### Phase 6b (2026-10-25, branch `phase-6b-seller-dashboard`)
 
-- Log in with PayPal (sandbox) for sellers: `/login`, `/api/auth/paypal/start` and `/callback`
+- Log in with PayPal (sandbox) for sellers: `/login`, `POST /api/auth/paypal/start` and `/callback`
   (state cookie against forged logins), `lib/paypal/identity.ts` (code → token → userinfo, the
   token used once and never stored). Signed 8-hour session cookie; no new secret.
 - `accounts` table; deals gain an owner and `archived_at` (migration `0006_seller_accounts`).
