@@ -7,7 +7,7 @@ import { setEngineDeps } from "@/lib/rules/engine";
 import { resetDb } from "@/tests/db";
 import { fakePaypal, TERMS_INPUT, testDeps } from "@/tests/factories";
 import { as, ctx, heldDeal, req, view } from "@/tests/routes";
-import { GET as startRoute } from "./auth/paypal/start/route";
+import { POST as startRoute } from "./auth/paypal/start/route";
 import { GET as callbackRoute } from "./auth/paypal/callback/route";
 import { POST as logoutRoute } from "./auth/logout/route";
 import { POST as archiveRoute } from "./dashboard/deals/[ref]/archive/route";
@@ -56,10 +56,13 @@ const cookieValue = (res: Response, name: string) => {
 };
 
 /** The whole login: start → PayPal → callback. Returns the session cookie header. */
+const start = () => startRoute(req("POST", {}));
+const startUrl = async (res: Response) => new URL(((await res.json()) as { url: string }).url);
+
 async function login(profile: Profile) {
-  const start = startRoute();
-  const state = cookieValue(start, "sd_oauth") as string;
-  const to = new URL(start.headers.get("location") as string);
+  const res = start();
+  const state = cookieValue(res, "sd_oauth") as string;
+  const to = await startUrl(res);
   expect(to.searchParams.get("state")).toBe(state);
   fakeIdentity(profile);
   const back = await callbackRoute(
@@ -97,14 +100,20 @@ const dash = async (email: string) =>
   });
 
 describe("Log in with PayPal", () => {
-  it("sends the seller to PayPal's sandbox sign-in with the code flow and a return URL", () => {
-    const to = new URL(startRoute().headers.get("location") as string);
+  it("sends the seller to PayPal's sandbox sign-in with the code flow and a return URL", async () => {
+    const to = await startUrl(start());
     expect(to.origin + to.pathname).toBe("https://www.sandbox.paypal.com/connect");
     expect(to.searchParams.get("client_id")).toBe("test-id");
     expect(to.searchParams.get("response_type")).toBe("code");
     expect(to.searchParams.get("redirect_uri")).toBe(
       "http://localhost:3000/api/auth/paypal/callback",
     );
+    // No GET redirect to PayPal (Safe Browsing flagged it as phishing), and JSON only.
+    const form = new Request("http://localhost/api/auth/paypal/start", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+    });
+    expect(startRoute(form).status).toBe(415);
   });
 
   it("creates the account from PayPal's profile and stores no PayPal token", async () => {

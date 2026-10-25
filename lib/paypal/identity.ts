@@ -25,7 +25,8 @@ export function connectUrl(opts: {
     // Same tab instead of a mini window: works the same on phones and avoids popup blockers.
     fullPage: "true",
   });
-  return `${opts.connectBase}?${q.toString()}`;
+  // Spaces as %20, as in PayPal's own button code (URLSearchParams would write "+").
+  return `${opts.connectBase}?${q.toString().replaceAll("+", "%20")}`;
 }
 
 export type PaypalProfile = {

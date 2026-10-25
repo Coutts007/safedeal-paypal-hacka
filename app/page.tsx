@@ -17,14 +17,14 @@ export default function Home() {
           PayPal sandbox demo. Paste your chat and the AI fills in the deal; you both confirm it.
         </p>
         <p className="text-sm">
-          Selling often?{" "}
+          Selling often? Keep all your deals in one place on the{" "}
           <Link
             href="/login"
             className="font-medium text-emerald-700 underline dark:text-emerald-400"
           >
-            Log in with PayPal
-          </Link>{" "}
-          to keep all your deals in one place.
+            seller dashboard
+          </Link>
+          .
         </p>
       </header>
       <CreateDeal kesPerUsd={serverEnv().KES_PER_USD} />

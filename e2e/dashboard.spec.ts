@@ -16,9 +16,9 @@ test("seller logs in with PayPal, creates a deal from the dashboard, ships it an
   await fakeLoginAs(request, { user_id: `e2e-${Date.now()}`, name: "Mama Mboga Shop", email });
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Log in with PayPal" }).click();
+  await page.getByRole("link", { name: "seller dashboard" }).click();
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole("link", { name: "Log in with PayPal" }).click();
+  await page.getByRole("button", { name: "Log in with PayPal" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "My deals" })).toBeVisible();
   await expect(page.locator("main header")).toContainText(`Mama Mboga Shop · ${email}`);

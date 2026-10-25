@@ -115,7 +115,7 @@ test("seller login, dashboard and new deal pages", async ({ page, request }) => 
     name: "A11y Shop",
     email: "seller-a@business.example.com",
   });
-  await page.getByRole("link", { name: "Log in with PayPal" }).click();
+  await page.getByRole("button", { name: "Log in with PayPal" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   for (const tab of ["needs", "active", "done", "archived"]) {
     await page.goto(`/dashboard?tab=${tab}`);
