@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { MAX_CHAT_CHARS } from "@/lib/ai/chat";
 import { setExtractModel } from "@/lib/ai/service";
 import { closeDb, getDb } from "@/lib/db";
 import { aiExtractions, aiRuns, chatSources, dealTerms } from "@/lib/db/schema";
@@ -69,7 +70,7 @@ describe("POST /api/extract", () => {
   });
 
   it("rejects an over-long chat", async () => {
-    const res = await extractRoute(req({ chat: "x".repeat(15_001) }));
+    const res = await extractRoute(req({ chat: "x".repeat(MAX_CHAT_CHARS + 1) }));
     expect(res.status).toBe(400);
   });
 });
