@@ -75,7 +75,7 @@ export default async function DashboardPage({
         Start a new deal
       </Link>
 
-      <nav aria-label="Deal lists" className="flex gap-1 overflow-x-auto">
+      <nav aria-label="Deal lists" className="flex flex-wrap gap-1">
         {TABS.map((t) => (
           <Link
             key={t.key}

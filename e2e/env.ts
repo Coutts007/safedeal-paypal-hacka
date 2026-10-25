@@ -13,6 +13,7 @@ export const E2E_ENV = {
   DATABASE_URL:
     process.env.E2E_DATABASE_URL ?? "postgres://safedeal:safedeal@localhost:5433/safedeal_e2e",
   PAYPAL_API_BASE: FAKE_PAYPAL,
+  PAYPAL_CONNECT_URL: `${FAKE_PAYPAL}/connect`,
   PAYPAL_CLIENT_ID: "e2e-client-id",
   PAYPAL_CLIENT_SECRET: "e2e-client-secret",
   PAYPAL_WEBHOOK_ID: "e2e-webhook-id",

@@ -310,3 +310,21 @@ Postgres 16 service) and the end-to-end tests on every push. Database tests crea
 - Evidence bundle PDF: `bundle.test.ts` (10 tests) and the route test (PDF with the photo
   embedded, JSON with `?format=json`); a PDF downloaded through the running app, checked page by
   page.
+
+### Phase 6b (2026-10-25)
+
+- Unit: `lib/accounts/session.test.ts` (signed cookie, expiry, tampering, state match),
+  `lib/paypal/identity.test.ts` (both userinfo shapes, primary confirmed email, no email → refused),
+  `lib/accounts/dashboard.test.ts` (lists, to-dos, a dispute brings an archived deal back, totals).
+- Database: `app/api/accounts.db.test.ts` (9) through the routes with PayPal's identity calls
+  faked: account created and no token stored, forged / cancelled / failed logins refused, deals
+  owned and paid to the account's email whatever the form sent, payee locked, earlier deals
+  added by payout email, dashboard lists and archiving, only the owner can archive (others get
+  404, no session 401, a form post 415). Mutation checks: removing the payee lock or the state
+  check makes these tests fail.
+- Playwright (`e2e/dashboard.spec.ts`), fake PayPal sign-in page: log in → new deal from the
+  dashboard → Needs you → paid (on hold US$12.00) → tracking → delivered → Finished → archived →
+  back → log out; a forged callback is refused. axe and no sideways scroll on `/login`, every
+  dashboard tab and `/dashboard/new`. Full suite: 13/13.
+- Not yet tested against PayPal itself: the real sandbox sign-in and userinfo answer (needs
+  Peter's dashboard setting).

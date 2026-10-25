@@ -103,7 +103,10 @@ export default function CreateDeal({
             Open my deal page
           </a>
           {account && (
-            <Link className="text-center text-sm text-emerald-700 underline" href="/dashboard">
+            <Link
+              className="text-center text-sm text-emerald-700 underline dark:text-emerald-400"
+              href="/dashboard"
+            >
               Back to my deals
             </Link>
           )}

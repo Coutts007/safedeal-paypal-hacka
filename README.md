@@ -10,6 +10,11 @@ automatically.
 
 **The AI proposes, the rule engine decides.** No AI output can move money.
 
+Sellers with many buyers can **log in with PayPal** and keep every deal on one dashboard: what
+needs them, what is in progress, what is finished, and archived deals. SafeDeal never sees a
+PayPal password, and deals created there always pay out to that PayPal account. Buyers never
+need an account; they use the private link the seller sends.
+
 > Status: under construction for the PayPal "Build What's Next with PayPal and AI" hackathon.
 > Sandbox only. The full README (demo URL, test logins, architecture, evaluation) comes in Phase 7.
 
