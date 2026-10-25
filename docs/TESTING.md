@@ -328,3 +328,13 @@ Postgres 16 service) and the end-to-end tests on every push. Database tests crea
   dashboard tab and `/dashboard/new`. Full suite: 13/13.
 - Not yet tested against PayPal itself: the real sandbox sign-in and userinfo answer (needs
   Peter's dashboard setting).
+
+### Chat file upload (2026-10-25)
+
+- Unit: `lib/ai/chat-file.test.ts` (8): Android export with system lines, media and an edited
+  message; iPhone zip with 12-hour times and a photo; month-first dates; Instagram JSON (newest
+  first, garbled UTF-8, Nairobi time); Telegram formatted text; trimming to the latest messages
+  under the AI limit; a sender name cannot fake a message header; files with no chat refused.
+- Playwright `e2e/chat-upload.spec.ts`: an iPhone zip is read in the browser and the exact text
+  is sent to `/api/extract`; a zip of photos gets a plain message. Full suite passes.
+- Live AI check on a 365-message export: see PROGRESS.

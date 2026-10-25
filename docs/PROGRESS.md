@@ -190,6 +190,20 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 - Tests: 16 unit, 9 database, 2 e2e (whole seller flow; forged login), axe and 360 px checks on
   the new pages. Download and copy buttons fixed (they turned white; now show progress).
 
+### Chat file upload (2026-10-25, branch `chat-file-upload`)
+
+- "Upload an exported chat" on the create form: WhatsApp `.txt` or the iPhone `.zip`
+  (`_chat.txt`), Instagram/Facebook `message_*.json` (or their zip), Telegram `result.json`.
+  Turned into text in the browser (`lib/ai/chat-file.ts`); the file never leaves the phone.
+  Handles 12-hour and month-first dates, drops system lines and media placeholders, fixes
+  Instagram's broken accents and emoji. The AI then reads it straight away.
+- The AI now reads up to 40,000 characters / 600 messages (was 15,000 / 300); a longer export
+  keeps the latest messages and says so.
+- Live check (`claude-sonnet-5-5`, `extract-v4`): a 3-week, 365-message iPhone export with an
+  earlier deal and two abandoned offers → the final terms (KES 12,800, G4S, ship 23 Oct from
+  "kesho", deliver by Saturday 24 Oct, 4 conditions), the planted injection flagged; 13,821 input
+  tokens, 5 s.
+
 ## Blocked / waiting on Peter
 
 - Phone test: fund a deal on his phone (sandbox) and report any problems.

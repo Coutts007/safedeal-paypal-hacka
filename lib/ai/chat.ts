@@ -5,8 +5,8 @@ import { neutralise } from "./untrusted";
 
 export type ChatMessage = { id: string; at: string | null; from: string | null; text: string };
 
-export const MAX_CHAT_CHARS = 15_000;
-export const MAX_MESSAGES = 300;
+export const MAX_CHAT_CHARS = 40_000;
+export const MAX_MESSAGES = 600;
 
 // iOS:     [20/10/2026, 09:01] Name: text      (seconds optional)
 // Android: 20/10/2026, 09:01 - Name: text
