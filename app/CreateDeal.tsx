@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { proposalSummary, type Proposal } from "@/lib/ai/proposal";
 import type { ReadChatResponse } from "@/lib/ai/service";
+import { CopyButton } from "./components/CopyButton";
 import { ChatFlags } from "./components/Sources";
 import TermsForm, { EMPTY_TERMS, type TermsInput } from "./components/TermsForm";
 import { Button, Card, Field, inputClass, Notice } from "./components/ui";
@@ -26,7 +27,6 @@ export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
   const [busy, setBusy] = useState<"read" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
-  const [copied, setCopied] = useState(false);
 
   async function readChat() {
     setBusy("read");
@@ -82,15 +82,7 @@ export default function CreateDeal({ kesPerUsd }: { kesPerUsd: number }) {
           <code className="rounded-lg bg-neutral-100 p-2 text-xs break-all text-neutral-900">
             {created.links.buyer}
           </code>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              await navigator.clipboard.writeText(created.links.buyer);
-              setCopied(true);
-            }}
-          >
-            {copied ? "Copied" : "Copy the buyer's link"}
-          </Button>
+          <CopyButton text={created.links.buyer} label="Copy the buyer's link" />
           <Notice tone="info">
             Keep your own link private: anyone with it can act as the seller.
           </Notice>
