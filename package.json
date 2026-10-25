@@ -33,6 +33,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",
     "drizzle-orm": "^0.45.4",
+    "fflate": "0.8.2",
     "next": "15.5.28",
     "pdf-lib": "1.17.1",
     "pg": "^8.23.1",

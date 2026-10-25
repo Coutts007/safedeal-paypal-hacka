@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { MAX_CHAT_CHARS } from "@/lib/ai/chat";
+import { chatFromFile, type ChatFile } from "@/lib/ai/chat-file";
 import { proposalSummary, type Proposal } from "@/lib/ai/proposal";
 import type { ReadChatResponse } from "@/lib/ai/service";
 import { CopyButton } from "./components/CopyButton";
@@ -32,20 +34,21 @@ export default function CreateDeal({
   const [sellerName, setSellerName] = useState(account?.name ?? "");
   const [buyerName, setBuyerName] = useState("");
   const [chatText, setChatText] = useState("");
+  const [loaded, setLoaded] = useState<(ChatFile & { ok: true }) | null>(null);
   const [reading, setReading] = useState<ReadChatResponse | null>(null);
   const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState<"read" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Created | null>(null);
 
-  async function readChat() {
+  async function readChat(chat = chatText) {
     setBusy("read");
     setError(null);
     try {
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat: chatText }),
+        body: JSON.stringify({ chat }),
       });
       const data = (await res.json()) as ReadChatResponse & { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Could not read the chat");
@@ -56,6 +59,23 @@ export default function CreateDeal({
     } finally {
       setBusy(null);
     }
+  }
+
+  /** An exported chat file: turned into text on this phone, shown, then read by the AI. */
+  async function uploadChat(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setLoaded(null);
+    setBusy("read");
+    const result = await chatFromFile(file.name, new Uint8Array(await file.arrayBuffer()));
+    if (!result.ok) {
+      setBusy(null);
+      setError(result.reason);
+      return;
+    }
+    setLoaded(result);
+    setChatText(result.text);
+    await readChat(result.text);
   }
 
   async function submit(terms: TermsInput) {
@@ -145,21 +165,56 @@ export default function CreateDeal({
 
       {!showForm && (
         <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
+            <label
+              htmlFor="chat-file"
+              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-emerald-600 px-4 py-2 text-center font-medium text-emerald-800 transition select-none hover:bg-emerald-50 active:scale-[0.98] dark:text-emerald-300 dark:hover:bg-emerald-950 ${busy ? "pointer-events-none opacity-60" : ""}`}
+            >
+              {busy === "read" && loaded ? "Reading the chat…" : "Upload an exported chat"}
+            </label>
+            <input
+              id="chat-file"
+              type="file"
+              accept=".txt,.zip,.json,text/plain,application/zip,application/json"
+              className="sr-only"
+              disabled={busy !== null}
+              onChange={(e) => {
+                void uploadChat(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">
+              WhatsApp: open the chat → ⋮ → More → Export chat → Without media, and pick the file
+              (.txt or .zip). Instagram or Telegram: the chat&apos;s JSON export. The file stays on
+              your phone; only its text is read.
+            </p>
+            {loaded && (
+              <p role="status" className="text-sm">
+                {loaded.source === "Text" ? "Chat" : `${loaded.source} chat`} loaded:{" "}
+                {loaded.kept === loaded.total
+                  ? `all ${loaded.total} messages`
+                  : `the latest ${loaded.kept} of ${loaded.total} messages`}
+                {loaded.from && loaded.to ? ` (${loaded.from} to ${loaded.to})` : ""}.
+                {loaded.kept < loaded.total &&
+                  " The deal is usually agreed at the end. If it was agreed earlier, paste that part of the chat below instead."}
+              </p>
+            )}
+          </div>
           <Field
-            label="Paste your chat with the buyer"
-            hint="WhatsApp: open the chat → ⋮ → More → Export chat → Without media, then paste the text. Phone numbers, emails and M-PESA codes are removed before the AI reads it."
+            label="Or paste your chat with the buyer"
+            hint="Phone numbers, emails and M-PESA codes are removed before the AI reads it."
           >
             <textarea
               className={`${inputClass} min-h-48 font-mono text-sm`}
               value={chatText}
-              maxLength={15000}
+              maxLength={MAX_CHAT_CHARS}
               onChange={(e) => setChatText(e.target.value)}
               placeholder={
                 "[20/10/2026, 09:01] Shemaya: Is the A15 still available?\n[20/10/2026, 09:03] David: Yes, 12k. I can send by G4S kesho"
               }
             />
           </Field>
-          <Button onClick={readChat} disabled={busy !== null || !chatText.trim()}>
+          <Button onClick={() => readChat()} disabled={busy !== null || !chatText.trim()}>
             {busy === "read" ? "Reading the chat…" : "Read the chat"}
           </Button>
           <button
