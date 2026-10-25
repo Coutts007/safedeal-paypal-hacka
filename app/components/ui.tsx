@@ -17,19 +17,25 @@ export function Button({
   variant = "primary",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger";
+  /** "success": a secondary action that just worked (e.g. "Copied ✓"). */
+  variant?: "primary" | "secondary" | "danger" | "success";
 }) {
+  // Each variant keeps readable text on hover and when pressed, in light and dark mode, and shows
+  // a press (darker background, slight shrink) so a tap visibly lands.
   const styles = {
-    primary: "bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300",
+    primary:
+      "bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-emerald-300 dark:disabled:bg-emerald-900 dark:disabled:text-emerald-300",
     secondary:
-      "border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100",
+      "border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 dark:active:bg-neutral-600",
+    success:
+      "border border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-600 dark:bg-emerald-950 dark:text-emerald-200",
     danger:
-      "border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 dark:bg-neutral-800",
+      "border border-red-300 bg-white text-red-700 hover:bg-red-50 active:bg-red-100 dark:border-red-800 dark:bg-neutral-800 dark:text-red-300 dark:hover:bg-red-950 dark:active:bg-red-900",
   }[variant];
   return (
     <button
       {...props}
-      className={`min-h-11 w-full rounded-xl px-4 py-2 font-medium transition ${styles} ${props.className ?? ""}`}
+      className={`min-h-11 w-full rounded-xl px-4 py-2 font-medium transition select-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 disabled:active:scale-100 ${styles} ${props.className ?? ""}`}
     />
   );
 }

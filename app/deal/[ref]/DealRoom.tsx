@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { DealView } from "@/lib/deals/service";
 import type { HintedField } from "@/lib/ai/proposal";
+import { CopyButton } from "../../components/CopyButton";
 import { ChatFlags, SourceChips } from "../../components/Sources";
 import TermsForm, { type TermsInput } from "../../components/TermsForm";
 import { Button, Card, Field, inputClass, kes, nairobi, Notice } from "../../components/ui";
@@ -260,24 +261,7 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
             )}
             {has("add_evidence") && <EvidenceForm view={view} token={token} onAdded={refresh} />}
             {has("download_bundle") && (
-              <Button
-                variant="secondary"
-                disabled={!!busy}
-                onClick={async () => {
-                  const res = await fetch(`/api/deals/${view.ref}/bundle`, {
-                    headers: { "x-deal-token": token },
-                  });
-                  if (!res.ok) return setError("Could not build the evidence bundle");
-                  const url = URL.createObjectURL(await res.blob());
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `safedeal-${view.ref}-evidence.pdf`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                Download the evidence bundle (PDF)
-              </Button>
+              <BundleButton reference={view.ref} token={token} onError={setError} />
             )}
             {has("edit_terms") && !editing && (
               <Button variant="secondary" disabled={!!busy} onClick={() => setEditing(true)}>
@@ -328,12 +312,7 @@ export default function DealRoom({ initial, token, kesPerUsd, paypal }: Props) {
             {view.buyerLink}
           </code>
           <div className="mt-2">
-            <Button
-              variant="secondary"
-              onClick={() => void navigator.clipboard.writeText(view.buyerLink as string)}
-            >
-              Copy the buyer&apos;s link
-            </Button>
+            <CopyButton text={view.buyerLink} label="Copy the buyer's link" />
           </div>
         </Card>
       )}
@@ -575,4 +554,67 @@ function from(view: DealView, field: HintedField) {
   const ref = view.sources.fields?.[field];
   if (!ref || !view.chat.length) return null;
   return <SourceChips ids={ref.sources} chat={view.chat} edited={ref.edited} />;
+}
+
+/**
+ * Downloads the evidence bundle PDF and shows each step, since building it takes a moment:
+ * "Preparing the PDF…", then "Downloaded ✓".
+ */
+function BundleButton({
+  reference,
+  token,
+  onError,
+}: {
+  reference: string;
+  token: string;
+  onError: (message: string | null) => void;
+}) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  async function download() {
+    setState("busy");
+    onError(null);
+    try {
+      const res = await fetch(`/api/deals/${reference}/bundle`, {
+        headers: { "x-deal-token": token },
+      });
+      if (!res.ok) throw new Error();
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `safedeal-${reference}-evidence.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoking at once can cancel the download in Safari and Firefox.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setState("done");
+      setTimeout(() => setState("idle"), 3000);
+    } catch {
+      setState("idle");
+      onError("Could not download the evidence bundle. Check your connection and try again.");
+    }
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <Button
+        variant={state === "done" ? "success" : "secondary"}
+        disabled={state === "busy"}
+        aria-busy={state === "busy"}
+        onClick={() => void download()}
+      >
+        {state === "busy"
+          ? "Preparing the PDF…"
+          : state === "done"
+            ? "Downloaded ✓"
+            : "Download the evidence bundle (PDF)"}
+      </Button>
+      <span
+        role="status"
+        aria-live="polite"
+        className="text-xs text-neutral-600 dark:text-neutral-400"
+      >
+        {state === "done" && "Saved to your downloads. Upload it in PayPal's Resolution Center."}
+      </span>
+    </div>
+  );
 }
