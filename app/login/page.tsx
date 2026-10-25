@@ -45,6 +45,15 @@ export default async function LoginPage({
           </p>
         </div>
       </Card>
+      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+        <Link href="/privacy" className="underline">
+          Privacy
+        </Link>{" "}
+        ·{" "}
+        <Link href="/terms" className="underline">
+          Terms
+        </Link>
+      </p>
     </main>
   );
 }

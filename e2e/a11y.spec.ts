@@ -102,6 +102,10 @@ test("reviewer pages", async ({ page, request }) => {
 });
 
 test("seller login, dashboard and new deal pages", async ({ page, request }) => {
+  for (const legal of ["/privacy", "/terms"]) {
+    await page.goto(legal);
+    await check(page, legal);
+  }
   await page.goto("/login");
   await check(page, "seller login");
   await page.goto("/login?error=paypal");

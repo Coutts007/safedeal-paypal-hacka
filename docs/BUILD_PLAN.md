@@ -507,7 +507,7 @@ You do:
 6. Tests: session and state cookies, userinfo parsing, routes (login callback, archive rules, deal ownership), Playwright login → create → pay → ship → archive against the fake PayPal, axe on the new pages.
 
 **STOP FOR PETER.** He must:
-1. In the Developer Dashboard (sandbox app), tick **Log in with PayPal**, open **Advanced Settings**, set the Return URL to `<APP_BASE_URL>/api/auth/paypal/callback`, tick Full name, Email and Account verification status (and PayPal account ID), enter `https://example.com` for the privacy policy and user agreement URLs, and save.
+1. In the Developer Dashboard (sandbox app), tick **Log in with PayPal**, open **Advanced Settings**, set the Return URL to `<APP_BASE_URL>/api/auth/paypal/callback`, tick Full name, Email and Account verification status (and PayPal account ID), enter `<APP_BASE_URL>/privacy` and `<APP_BASE_URL>/terms` for the privacy policy and user agreement URLs, and save.
 2. Log in on Render with a sandbox business account and report what he sees.
 
 ### Phase 7: Submission package (9 to 11 November)
