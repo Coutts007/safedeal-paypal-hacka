@@ -5,7 +5,18 @@ import type { Extraction } from "./schema";
 // the server to record which fields the seller changed.
 
 export type Confidence = "high" | "medium" | "low";
-export type FieldHint = { sources: string[]; confidence: Confidence; note?: string };
+/**
+ * What the person must do about a field, apart from how sure the AI was: confirm a price that was
+ * converted to US$, or fill in something the chat never settled. Kept separate from `confidence`
+ * so a correctly read KES price is not shown as the AI being unsure.
+ */
+export type FieldAction = "set_usd" | "fill_in";
+export type FieldHint = {
+  sources: string[];
+  confidence: Confidence;
+  action?: FieldAction;
+  note?: string;
+};
 
 export type HintedField =
   "item" | "quantity" | "price" | "deliveryMethod" | "carrier" | "shipBy" | "deliverBy";
@@ -53,25 +64,37 @@ export function toProposal(x: Extraction, kesPerUsd: number): Proposal {
     } else {
       chatPrice = { amount: n.toFixed(2), currency: x.price.currency };
       if (x.price.currency === "KES") amount = (n / kesPerUsd).toFixed(2);
+      // The AI read the price; converting it is SafeDeal's step, so the seller confirms the
+      // US$ amount (PayPal charges US$) without the AI being shown as unsure.
       hints.price = {
         sources: x.price.sources,
-        // A converted price is always for the seller to check: PayPal charges USD.
-        confidence: "low",
+        confidence: x.price.confidence,
+        action: "set_usd",
         note:
           x.price.currency === "KES"
-            ? `Chat says KES ${n.toLocaleString("en-KE")}; converted at ${kesPerUsd} KES per US$. Set the USD price.`
-            : "The chat price is not in KES or USD. Set the USD price.",
+            ? `The chat says KES ${n.toLocaleString("en-KE")}. That is about US$${amount} at ${kesPerUsd} KES per US$. PayPal charges in US$, so confirm the amount.`
+            : "The chat price is not in KES or US$. Enter the price in US$.",
       };
     }
   } else {
-    hints.price = { sources: [], confidence: "low", note: "No agreed price found in the chat." };
+    hints.price = {
+      sources: [],
+      confidence: "low",
+      action: "fill_in",
+      note: "The chat has no agreed price. Enter it in US$.",
+    };
   }
 
   if (x.item.value) hints.item = hint(x.item);
   if (x.quantity.value) hints.quantity = hint(x.quantity);
   hints.deliveryMethod = x.delivery_method.value
     ? hint(x.delivery_method)
-    : { sources: [], confidence: "low", note: "Not settled in the chat." };
+    : {
+        sources: [],
+        confidence: "low",
+        action: "fill_in",
+        note: "The chat does not say how it will be delivered. Choose one.",
+      };
   if (x.carrier.value) hints.carrier = hint(x.carrier);
   if (x.ship_by.value) hints.shipBy = hint(x.ship_by);
   if (x.deliver_by.value) hints.deliverBy = hint(x.deliver_by);
@@ -153,4 +176,46 @@ export function carrySourceRefs(
     sources: prev.conditions?.find((c) => c.text === text)?.sources ?? [],
   }));
   return { fields, conditions };
+}
+
+const FIELD_NAME: Record<string, string> = {
+  item: "item",
+  quantity: "quantity",
+  price: "price",
+  deliveryMethod: "delivery method",
+  delivery_method: "delivery method",
+  carrier: "carrier",
+  shipBy: "ship-by date",
+  ship_by: "ship-by date",
+  deliverBy: "deliver-by date",
+  deliver_by: "deliver-by date",
+  conditions: "conditions",
+};
+
+/**
+ * What the form above the fields says about the AI's reading: how many fields came from the
+ * chat, what the seller must do, what to look at, and what the chat never mentioned.
+ */
+export function proposalSummary(p: Proposal) {
+  const hints = Object.entries(p.hints) as [HintedField, FieldHint][];
+  const needsYou = hints
+    .filter(([, h]) => h.action)
+    .map(([f, h]) =>
+      h.action === "set_usd" && p.chatPrice?.currency === "KES"
+        ? "confirm the US$ price (the chat was in KES)"
+        : h.action === "set_usd" || f === "price"
+          ? "enter the price in US$"
+          : `choose the ${FIELD_NAME[f]}`,
+    );
+  const check = hints
+    .filter(([, h]) => !h.action && h.confidence !== "high")
+    .map(([f]) => FIELD_NAME[f]);
+  const named = new Set(hints.filter(([, h]) => h.action).map(([f]) => FIELD_NAME[f]));
+  const notMentioned = [
+    ...new Set(p.missing.map((m) => FIELD_NAME[m] ?? m.replaceAll("_", " "))),
+  ].filter(
+    (n) => !named.has(n) && !hints.some(([f, h]) => FIELD_NAME[f] === n && h.sources.length),
+  );
+  const filled = hints.filter(([, h]) => h.sources.length > 0).length;
+  return { filled, needsYou, check, notMentioned };
 }

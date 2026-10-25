@@ -72,7 +72,13 @@ export default function TermsForm({
   const marker = (f: HintedField) => {
     const h = hints[f];
     return h ? (
-      <SourceChips ids={h.sources} chat={chat} confidence={h.confidence} note={h.note} />
+      <SourceChips
+        ids={h.sources}
+        chat={chat}
+        confidence={h.confidence}
+        action={h.action}
+        note={h.note}
+      />
     ) : null;
   };
   const [t, setT] = useState(initial);

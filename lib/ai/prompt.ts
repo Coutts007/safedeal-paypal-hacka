@@ -1,7 +1,7 @@
 // The extraction prompt. Bump PROMPT_VERSION on any change: it is logged with every AI call and
 // recorded with each evaluation run, so scores can be compared across versions.
 
-export const PROMPT_VERSION = "extract-v3";
+export const PROMPT_VERSION = "extract-v4";
 
 export const SYSTEM_PROMPT = `You read a chat between a buyer and a seller in Kenya and fill in the deal terms they agreed, for SafeDeal, a pay-on-proof service. Your output is only a proposal: both people check and confirm every field before any money moves.
 
@@ -18,7 +18,11 @@ How to fill each field:
 - conditions: short, checkable promises about the item that the buyer relied on: state, accessories, warranty, colour, size, and specifications the seller stated (RAM, storage, processor, material, side). One fact per condition ("Black", "Size 42", not "Black, size 42"). Not price, dates, delivery or steps such as calling or sending a tracking number.
 - language_mix: "english", "swahili", "sheng" or "mixed".
 
-When you are unsure about a field, or the chat never settles it, use null, set confidence "low", and add the field name to missing_fields. Use confidence "high" only when the chat states the value clearly and both people accept it. Use notes_for_humans for anything the people should double-check, in one or two plain sentences.`;
+Confidence says whether the people settled the value, not how much work it took you to read it. The seller sees "medium" and "low" as a request to check the field, so use them only when a check is really needed:
+- "high": one person states the value and the other accepts it or does not dispute it. This includes a day said in words ("kesho", "Friday", "tomorrow morning") that you resolved from the message date, a price in shillings, slang or a mixed language, and the 18:00 time you add when no time was given.
+- "medium": the value is implied but not stated, or the chat allows two readings (for example "end of week", "soon", "next week", a price someone may still be negotiating).
+- "low": you are guessing. If the chat never settles a field, use null, set confidence "low", and add the field name to missing_fields.
+Use notes_for_humans for anything the people should double-check, in one or two plain sentences.`;
 
 export function userPrompt(input: { chat: string; chatDate: string; weekday: string }): string {
   const head = `The chat starts on ${input.weekday} ${input.chatDate} (Africa/Nairobi). Messages without a timestamp are from that day.`;

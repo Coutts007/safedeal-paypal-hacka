@@ -2,34 +2,52 @@
 
 import { useState } from "react";
 import type { ChatMessage } from "@/lib/ai/chat";
+import type { Confidence, FieldAction } from "@/lib/ai/proposal";
 
-// "From the chat" markers: how sure the AI was, and the messages a field came from. Tapping a
-// message id shows that message, so people can check the AI against what was actually said.
+// "From the chat" markers on the seller's form: what the person needs to do about a field, or how
+// clearly the chat said it, and the messages it came from. Tapping a message id shows that
+// message, so people can check the AI against what was actually said. Never red: nothing here is
+// an error, only something to look at.
 
-const TONE = {
-  high: "bg-emerald-100 text-emerald-800",
-  medium: "bg-amber-100 text-amber-800",
-  low: "bg-red-100 text-red-800",
-} as const;
+const GREEN = "bg-emerald-100 text-emerald-800";
+const AMBER = "bg-amber-100 text-amber-900";
+const GREY = "bg-neutral-100 text-neutral-700";
 
-const LABEL = { high: "AI: sure", medium: "AI: check", low: "AI: unsure" } as const;
+const ACTION: Record<FieldAction, { label: string; tone: string }> = {
+  set_usd: { label: "Confirm the US$ price", tone: AMBER },
+  fill_in: { label: "Not in the chat", tone: GREY },
+};
+
+const CONFIDENCE: Record<Confidence, { label: string; tone: string }> = {
+  high: { label: "Matches the chat", tone: GREEN },
+  medium: { label: "Check this", tone: AMBER },
+  low: { label: "Not clear in the chat", tone: AMBER },
+};
+
+function chip(confidence?: Confidence, action?: FieldAction) {
+  if (action) return ACTION[action];
+  return confidence ? CONFIDENCE[confidence] : null;
+}
 
 export function SourceChips({
   ids,
   chat,
   confidence,
+  action,
   edited,
   note,
 }: {
   ids: string[];
   chat: ChatMessage[];
-  confidence?: "high" | "medium" | "low";
+  confidence?: Confidence;
+  action?: FieldAction;
   edited?: boolean;
   note?: string;
 }) {
   const [open, setOpen] = useState(false);
   const quoted = chat.filter((m) => ids.includes(m.id));
-  if (!confidence && !quoted.length && !edited && !note) return null;
+  const marker = chip(confidence, action);
+  if (!marker && !quoted.length && !edited && !note) return null;
   return (
     <span className="mt-1 flex flex-col gap-1">
       <span className="flex flex-wrap items-center gap-1 text-xs">
@@ -38,9 +56,7 @@ export function SourceChips({
             Changed by hand
           </span>
         ) : (
-          confidence && (
-            <span className={`rounded px-1.5 py-0.5 ${TONE[confidence]}`}>{LABEL[confidence]}</span>
-          )
+          marker && <span className={`rounded px-1.5 py-0.5 ${marker.tone}`}>{marker.label}</span>
         )}
         {quoted.length > 0 && (
           <button
@@ -49,7 +65,7 @@ export function SourceChips({
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
           >
-            {open ? "Hide chat" : `From chat ${quoted.map((m) => m.id).join(", ")}`}
+            {open ? "Hide chat" : `See message ${quoted.map((m) => m.id).join(", ")}`}
           </button>
         )}
       </span>

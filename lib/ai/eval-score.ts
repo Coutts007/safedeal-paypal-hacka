@@ -143,3 +143,34 @@ export const add = (a: Counts, b: Counts): Counts => ({
   fn: a.fn + b.fn,
 });
 export const ZERO: Counts = { tp: 0, fp: 0, fn: 0 };
+
+const VALUE_FIELDS = [
+  "item",
+  "quantity",
+  "price",
+  "delivery_method",
+  "carrier",
+  "ship_by",
+  "deliver_by",
+] as const;
+
+/**
+ * Calibration: for every field the AI filled, how often each confidence level was right. The
+ * seller's form turns "medium" and "low" into "Check this" markers, so a level that is nearly
+ * always right only adds doubt.
+ */
+export function calibration(rows: { prediction: Extraction | null; score: ChatScore }[]) {
+  const out = { high: { ...ZERO_FILLED }, medium: { ...ZERO_FILLED }, low: { ...ZERO_FILLED } };
+  for (const r of rows) {
+    if (!r.prediction) continue;
+    for (const f of VALUE_FIELDS) {
+      const p = r.prediction[f];
+      const value = "amount" in p ? p.amount : p.value;
+      if (value === null) continue;
+      out[p.confidence].filled++;
+      if (r.score.fields[f].fp === 0) out[p.confidence].right++;
+    }
+  }
+  return out;
+}
+const ZERO_FILLED = { filled: 0, right: 0 };

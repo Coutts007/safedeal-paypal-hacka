@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { extraction } from "@/tests/ai";
-import { goldChatSchema, metrics, scoreChat, type GoldChat } from "./eval-score";
+import { calibration, goldChatSchema, metrics, scoreChat, type GoldChat } from "./eval-score";
 
 const gold: GoldChat = {
   id: "t-1",
@@ -54,6 +54,20 @@ describe("scoreChat", () => {
 
   it("computes precision, recall and F1", () => {
     expect(metrics({ tp: 3, fp: 1, fn: 2 })).toMatchObject({ precision: 0.75, recall: 0.6 });
+  });
+});
+
+describe("calibration", () => {
+  it("counts filled fields per confidence level and how many were right", () => {
+    // Fixture: ship_by "medium" and right; carrier made "low" and wrong; deliver_by not filled.
+    const prediction = extraction({
+      carrier: { value: "Fargo", sources: ["m4"], confidence: "low" },
+    });
+    const c = calibration([{ prediction, score: scoreChat(gold, prediction) }]);
+    expect(c.medium).toEqual({ filled: 1, right: 1 });
+    expect(c.low).toEqual({ filled: 1, right: 0 });
+    expect(c.high.filled).toBe(4); // item, quantity, price, delivery method
+    expect(calibration([{ prediction: null, score: scoreChat(gold, null) }]).high.filled).toBe(0);
   });
 });
 

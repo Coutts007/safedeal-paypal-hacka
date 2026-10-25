@@ -566,16 +566,13 @@ function ProblemForm({ busy, onSubmit }: { busy: boolean; onSubmit: (note: strin
   );
 }
 
-/** "From the chat" marker for a deal-card field, when the deal started from a chat. */
+/**
+ * "From the chat" marker for a deal-card field, when the deal started from a chat: the message it
+ * came from, or that it was changed by hand. The AI's confidence is only for the seller's form;
+ * by now a person has checked every field.
+ */
 function from(view: DealView, field: HintedField) {
   const ref = view.sources.fields?.[field];
   if (!ref || !view.chat.length) return null;
-  return (
-    <SourceChips
-      ids={ref.sources}
-      chat={view.chat}
-      confidence={ref.confidence}
-      edited={ref.edited}
-    />
-  );
+  return <SourceChips ids={ref.sources} chat={view.chat} edited={ref.edited} />;
 }

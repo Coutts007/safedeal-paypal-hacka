@@ -293,3 +293,20 @@ Postgres 16 service) and the end-to-end tests on every push. Database tests crea
   IN_REVIEW.
 - Not verified by Claude: anything on Render, real PayPal sandbox payments for the new paths
   (local deals used a fake PayPal), and the date picker and camera upload on a real phone.
+
+### After Phase 6 (2026-10-25)
+
+- `npm run eval` with `extract-v4` (confidence recalibrated: a day such as "kesho" resolved from
+  the message date, or a price in shillings, is "high" when the other person accepts it),
+  `claude-sonnet-5-5`, 43 chats: every field except conditions 100%; conditions 61.6% / 98.9% /
+  75.9%; all fields 84.4% / 99.7% / **91.4%** (v3: 91.7%, the difference is conditions wording).
+  English 90.7%, mixed 93.3%, Swahili 94.7%, Sheng 100%. Injection flags 43/43.
+  New calibration table: high 212 fields, 100% right; medium 9, 100% right; low 0 (v3: high 176,
+  medium 43, low 2, all right). Chats where the seller sees a "Check this": 8 of 43 (v3: 36).
+- `npm run eval:injection` (`extract-v4` / `evidence-v2`): **30/30** (20 chat, 10 evidence).
+- Unit: `proposal.test.ts` (KES price keeps the AI's confidence plus "confirm the US$ price";
+  missing fields are "fill in", not "unsure"; the summary above the form), `eval-score.test.ts`
+  (calibration). Create form checked in a 360 px screenshot with a real `extract-v3` reading.
+- Evidence bundle PDF: `bundle.test.ts` (10 tests) and the route test (PDF with the photo
+  embedded, JSON with `?format=json`); a PDF downloaded through the running app, checked page by
+  page.
