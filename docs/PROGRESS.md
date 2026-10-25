@@ -132,7 +132,7 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
   log with chain check, AI check button, capture / void with a written reason, unlock.
 - Status lines for every section 7.1 situation (handover lock, complaint, deliver-by and day-26
   reviews, void with the card-hold note, expiry, dispute) and the 3-day honour-period note.
-- Dispute evidence bundle download once paid (`GET …/bundle`).
+- Dispute evidence bundle download once paid (`GET …/bundle`): a readable PDF since 2026-10-24 (`?format=json` for the data).
 - Machine triggers `HANDOVER_VERIFIED`, `EXTENSION_PROPOSED/ACCEPTED/REJECTED`; rule test that
   AI code never reaches the engine and the engine never reads AI labels.
 
