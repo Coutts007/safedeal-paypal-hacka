@@ -160,33 +160,72 @@ export async function profileFromCode(opts: {
   if (typeof accessToken !== "string" || !accessToken) {
     return { ok: false, reason: "code exchange gave no access token" };
   }
-  // The granted scopes go into any failure reason: a missing one explains a refused profile.
+  // Scopes SafeDeal asked for but the token lacks go into any failure reason.
   const scope = (token.value as { scope?: unknown }).scope;
-  const granted = typeof scope === "string" ? ` [scope: ${scope.slice(0, 300)}]` : "";
-  // Content-Type as in PayPal's own userinfo example; without it the answer was HTTP 400.
+  const grantedScopes = typeof scope === "string" ? scope.split(" ") : [];
+  const missing = LOGIN_SCOPES.split(" ").filter((s) => !grantedScopes.includes(s));
+  const scopeNote = ` [missing scopes: ${missing.join(" ") || "none"}]`;
+  // Content-Type as in PayPal's own userinfo example.
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  let info = await call(`${opts.apiBase}/v1/identity/oauth2/userinfo?schema=paypalv1.1`, {
-    headers,
-  });
-  // The sandbox has answered HTTP 400 to `paypalv1.1` for a valid token; the OpenID endpoint gives
-  // the same profile (parseUserinfo reads both shapes).
-  if (!info.ok && info.reason.startsWith("HTTP 4")) {
-    const first = info.reason;
-    info = await call(`${opts.apiBase}/v1/identity/openidconnect/userinfo?schema=openid`, {
-      headers,
-    });
-    if (!info.ok) {
-      return {
-        ok: false,
-        reason: `userinfo failed: ${first}; openid: ${info.reason}${granted}`,
-      };
+  // The sandbox has refused `paypalv1.1` (HTTP 400 "Unable to fetch details to serve the request")
+  // and the OpenID Connect path (HTTP 401) for a valid token, so each documented address is tried in
+  // turn; parseUserinfo reads both answer shapes.
+  const failures: string[] = [];
+  let info: IdentityResult<unknown> | undefined;
+  for (const path of [
+    "/v1/identity/oauth2/userinfo?schema=paypalv1.1",
+    "/v1/identity/oauth2/userinfo?schema=openid",
+    "/v1/identity/openidconnect/userinfo?schema=openid",
+  ]) {
+    const r = await call(`${opts.apiBase}${path}`, { headers });
+    if (r.ok) {
+      info = r;
+      break;
     }
+    failures.push(`${path.split("?")[1]}: ${r.reason}`);
+    if (!r.reason.startsWith("HTTP 4")) break;
   }
-  if (!info.ok) return { ok: false, reason: `userinfo failed: ${info.reason}${granted}` };
+  // Last resort: the ID token from the same code exchange. It came straight from PayPal's token
+  // endpoint over TLS, authenticated with the client secret (OpenID Connect Core 3.1.3.7), so its
+  // claims are PayPal's; it must name this app as its audience.
+  if (!info) {
+    const claims = idTokenClaims((token.value as { id_token?: unknown }).id_token, opts.clientId);
+    if (claims.ok) {
+      const parsed = parseUserinfo(claims.value);
+      if (parsed.ok) return { ok: true, value: parsed.profile };
+      // Claim names only, never values: they show what PayPal put in the token.
+      const names = Object.keys(claims.value as object)
+        .sort()
+        .join(",");
+      failures.push(`id_token: ${parsed.reason} (claims: ${names})`);
+    } else {
+      failures.push(`id_token: ${claims.reason}`);
+    }
+    return { ok: false, reason: `userinfo failed: ${failures.join("; ")}${scopeNote}` };
+  }
+  if (!info.ok) return info;
   const parsed = parseUserinfo(info.value);
   return parsed.ok ? { ok: true, value: parsed.profile } : parsed;
+}
+
+/** The claims of an ID token addressed to this app, or why it cannot be used. */
+export function idTokenClaims(idToken: unknown, clientId: string): IdentityResult<unknown> {
+  if (typeof idToken !== "string") return { ok: false, reason: "none returned" };
+  const payload = idToken.split(".")[1];
+  let claims: { aud?: unknown; exp?: unknown };
+  try {
+    claims = JSON.parse(Buffer.from(payload ?? "", "base64url").toString("utf8"));
+  } catch {
+    return { ok: false, reason: "unreadable" };
+  }
+  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  if (!aud.includes(clientId)) return { ok: false, reason: "not addressed to this app" };
+  if (typeof claims.exp === "number" && claims.exp * 1000 < Date.now()) {
+    return { ok: false, reason: "expired" };
+  }
+  return { ok: true, value: claims };
 }
