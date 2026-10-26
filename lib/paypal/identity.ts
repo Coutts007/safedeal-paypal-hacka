@@ -104,11 +104,24 @@ async function call(url: string, init: RequestInit): Promise<IdentityResult<unkn
     return { ok: false, reason: `PayPal unreachable (${networkErrorReason(e)})` };
   }
   const debugId = res.headers.get("paypal-debug-id") ?? "n/a";
-  if (!res.ok) return { ok: false, reason: `HTTP ${res.status} (debug_id ${debugId})` };
+  if (!res.ok) {
+    return { ok: false, reason: `HTTP ${res.status}${await errorName(res)} (debug_id ${debugId})` };
+  }
   try {
     return { ok: true, value: await res.json() };
   } catch {
     return { ok: false, reason: `unreadable answer (debug_id ${debugId})` };
+  }
+}
+
+/** PayPal's error code from a refusal (`error` or `name`), never the rest of the body. */
+async function errorName(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: unknown; name?: unknown };
+    const name = body.error ?? body.name;
+    return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? ` ${name}` : "";
+  } catch {
+    return "";
   }
 }
 
@@ -133,9 +146,21 @@ export async function profileFromCode(opts: {
   if (typeof accessToken !== "string" || !accessToken) {
     return { ok: false, reason: "code exchange gave no access token" };
   }
-  const info = await call(`${opts.apiBase}/v1/identity/oauth2/userinfo?schema=paypalv1.1`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  let info = await call(`${opts.apiBase}/v1/identity/oauth2/userinfo?schema=paypalv1.1`, {
+    headers,
   });
+  // The sandbox has answered HTTP 400 to `paypalv1.1` for a valid token; the OpenID endpoint gives
+  // the same profile (parseUserinfo reads both shapes).
+  if (!info.ok && info.reason.startsWith("HTTP 4")) {
+    const first = info.reason;
+    info = await call(`${opts.apiBase}/v1/identity/openidconnect/userinfo?schema=openid`, {
+      headers,
+    });
+    if (!info.ok) {
+      return { ok: false, reason: `userinfo failed: ${first}; openid: ${info.reason}` };
+    }
+  }
   if (!info.ok) return { ok: false, reason: `userinfo failed: ${info.reason}` };
   const parsed = parseUserinfo(info.value);
   return parsed.ok ? { ok: true, value: parsed.profile } : parsed;

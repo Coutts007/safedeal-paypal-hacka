@@ -98,4 +98,37 @@ describe("profileFromCode", () => {
     expect(r).toEqual({ ok: false, reason: "code exchange failed: HTTP 400 (debug_id dbg1)" });
     expect(JSON.stringify(r)).not.toContain("SEC");
   });
+
+  it("falls back to the OpenID userinfo endpoint when paypalv1.1 is refused", async () => {
+    const urls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      urls.push(String(url));
+      if (String(url).endsWith("/v1/oauth2/token")) return Response.json({ access_token: "T" });
+      if (String(url).includes("schema=paypalv1.1")) {
+        return Response.json({ name: "INVALID_REQUEST" }, { status: 400 });
+      }
+      return Response.json({ sub: "u2", email: "s2@example.com", email_verified: true });
+    });
+    const r = await profileFromCode(opts);
+    expect(r).toMatchObject({ ok: true, value: { paypalUserId: "u2", email: "s2@example.com" } });
+    expect(urls[2]).toBe("https://api.test/v1/identity/openidconnect/userinfo?schema=openid");
+  });
+
+  it("names PayPal's error code from both userinfo refusals", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).endsWith("/v1/oauth2/token")
+        ? Response.json({ access_token: "T" })
+        : Response.json(
+            { error: "insufficient_scope", error_description: "s@example.com" },
+            { status: 403, headers: { "paypal-debug-id": "d" } },
+          ),
+    );
+    const r = await profileFromCode(opts);
+    expect(r).toEqual({
+      ok: false,
+      reason:
+        "userinfo failed: HTTP 403 insufficient_scope (debug_id d); openid: HTTP 403 insufficient_scope (debug_id d)",
+    });
+    expect(JSON.stringify(r)).not.toContain("s@example.com");
+  });
 });
