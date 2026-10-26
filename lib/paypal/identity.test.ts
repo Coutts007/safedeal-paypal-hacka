@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { connectUrl, LOGIN_SCOPES, parseUserinfo, profileFromCode } from "./identity";
+import {
+  connectUrl,
+  idTokenClaims,
+  LOGIN_SCOPES,
+  parseUserinfo,
+  profileFromCode,
+} from "./identity";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -100,7 +106,7 @@ describe("profileFromCode", () => {
     expect(JSON.stringify(r)).not.toContain("SEC");
   });
 
-  it("falls back to the OpenID userinfo endpoint when paypalv1.1 is refused", async () => {
+  it("falls back to the OpenID schema when paypalv1.1 is refused", async () => {
     const urls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       urls.push(String(url));
@@ -112,13 +118,19 @@ describe("profileFromCode", () => {
     });
     const r = await profileFromCode(opts);
     expect(r).toMatchObject({ ok: true, value: { paypalUserId: "u2", email: "s2@example.com" } });
-    expect(urls[2]).toBe("https://api.test/v1/identity/openidconnect/userinfo?schema=openid");
+    expect(urls[2]).toBe("https://api.test/v1/identity/oauth2/userinfo?schema=openid");
   });
 
-  it("names PayPal's error code from both userinfo refusals", async () => {
+  it("names every refusal, the missing scopes and the ID token's claim names", async () => {
+    const jwt = (claims: object) =>
+      `h.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.sig`;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
       String(url).endsWith("/v1/oauth2/token")
-        ? Response.json({ access_token: "T", scope: "openid email" })
+        ? Response.json({
+            access_token: "T",
+            scope: "openid profile",
+            id_token: jwt({ aud: "CID", sub: "u3", name: "s@example.com" }),
+          })
         : Response.json(
             { error: "insufficient_scope", error_description: "s@example.com" },
             { status: 403, headers: { "paypal-debug-id": "d" } },
@@ -128,9 +140,27 @@ describe("profileFromCode", () => {
     expect(r).toEqual({
       ok: false,
       reason:
-        "userinfo failed: HTTP 403 insufficient_scope (debug_id d); openid: HTTP 403 insufficient_scope (debug_id d) [scope: openid email]",
+        "userinfo failed: schema=paypalv1.1: HTTP 403 insufficient_scope (debug_id d); " +
+        "schema=openid: HTTP 403 insufficient_scope (debug_id d); " +
+        "schema=openid: HTTP 403 insufficient_scope (debug_id d); " +
+        "id_token: PayPal did not share an email address (claims: aud,name,sub) " +
+        "[missing scopes: email https://uri.paypal.com/services/paypalattributes]",
     });
     expect(JSON.stringify(r)).not.toContain("s@example.com");
+  });
+
+  it("uses the ID token when every userinfo address is refused", async () => {
+    const claims = { aud: "CID", sub: "u4", email: "s4@example.com", name: "Shemaya" };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).endsWith("/v1/oauth2/token")
+        ? Response.json({
+            access_token: "T",
+            id_token: `h.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.s`,
+          })
+        : Response.json({ error: "invalid_request" }, { status: 400 }),
+    );
+    const r = await profileFromCode(opts);
+    expect(r).toMatchObject({ ok: true, value: { paypalUserId: "u4", email: "s4@example.com" } });
   });
 
   it("logs PayPal's short error description", async () => {
@@ -144,6 +174,23 @@ describe("profileFromCode", () => {
     expect(r).toEqual({
       ok: false,
       reason: 'code exchange failed: HTTP 400 invalid_request "Missing header" (debug_id d)',
+    });
+  });
+});
+
+describe("idTokenClaims", () => {
+  const jwt = (c: object) => `h.${Buffer.from(JSON.stringify(c)).toString("base64url")}.s`;
+  it("refuses a token for another app, an expired one and garbage", () => {
+    expect(idTokenClaims(jwt({ aud: "OTHER" }), "CID")).toMatchObject({ ok: false });
+    expect(idTokenClaims(jwt({ aud: ["CID"], exp: 1 }), "CID")).toEqual({
+      ok: false,
+      reason: "expired",
+    });
+    expect(idTokenClaims("nope", "CID")).toEqual({ ok: false, reason: "unreadable" });
+    expect(idTokenClaims(undefined, "CID")).toEqual({ ok: false, reason: "none returned" });
+    expect(idTokenClaims(jwt({ aud: "CID", sub: "x" }), "CID")).toEqual({
+      ok: true,
+      value: { aud: "CID", sub: "x" },
     });
   });
 });
