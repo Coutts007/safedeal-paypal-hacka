@@ -114,12 +114,26 @@ async function call(url: string, init: RequestInit): Promise<IdentityResult<unkn
   }
 }
 
-/** PayPal's error code from a refusal (`error` or `name`), never the rest of the body. */
+/**
+ * PayPal's error code from a refusal (`error` or `name`) and its short description, never the rest
+ * of the body.
+ */
 async function errorName(res: Response): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: unknown; name?: unknown };
+    const body = (await res.json()) as {
+      error?: unknown;
+      name?: unknown;
+      error_description?: unknown;
+      message?: unknown;
+    };
     const name = body.error ?? body.name;
-    return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? ` ${name}` : "";
+    const desc = body.error_description ?? body.message;
+    const code = typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? ` ${name}` : "";
+    const text =
+      typeof desc === "string" && !desc.includes("@")
+        ? ` "${desc.replace(/[^\x20-\x7e]/g, "").slice(0, 120)}"`
+        : "";
+    return code + text;
   } catch {
     return "";
   }
@@ -146,7 +160,15 @@ export async function profileFromCode(opts: {
   if (typeof accessToken !== "string" || !accessToken) {
     return { ok: false, reason: "code exchange gave no access token" };
   }
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  // The granted scopes go into any failure reason: a missing one explains a refused profile.
+  const scope = (token.value as { scope?: unknown }).scope;
+  const granted = typeof scope === "string" ? ` [scope: ${scope.slice(0, 300)}]` : "";
+  // Content-Type as in PayPal's own userinfo example; without it the answer was HTTP 400.
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
   let info = await call(`${opts.apiBase}/v1/identity/oauth2/userinfo?schema=paypalv1.1`, {
     headers,
   });
@@ -158,10 +180,13 @@ export async function profileFromCode(opts: {
       headers,
     });
     if (!info.ok) {
-      return { ok: false, reason: `userinfo failed: ${first}; openid: ${info.reason}` };
+      return {
+        ok: false,
+        reason: `userinfo failed: ${first}; openid: ${info.reason}${granted}`,
+      };
     }
   }
-  if (!info.ok) return { ok: false, reason: `userinfo failed: ${info.reason}` };
+  if (!info.ok) return { ok: false, reason: `userinfo failed: ${info.reason}${granted}` };
   const parsed = parseUserinfo(info.value);
   return parsed.ok ? { ok: true, value: parsed.profile } : parsed;
 }

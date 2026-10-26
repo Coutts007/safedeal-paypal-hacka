@@ -85,9 +85,10 @@ describe("profileFromCode", () => {
     );
     expect(calls[0].init.body).toBe("grant_type=authorization_code&code=C0DE");
     expect(calls[1].url).toBe("https://api.test/v1/identity/oauth2/userinfo?schema=paypalv1.1");
-    expect((calls[1].init.headers as Record<string, string>).Authorization).toBe(
-      "Bearer USER-TOKEN",
-    );
+    expect(calls[1].init.headers).toMatchObject({
+      Authorization: "Bearer USER-TOKEN",
+      "Content-Type": "application/json",
+    });
   });
 
   it("reports a refused code without leaking anything", async () => {
@@ -117,7 +118,7 @@ describe("profileFromCode", () => {
   it("names PayPal's error code from both userinfo refusals", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
       String(url).endsWith("/v1/oauth2/token")
-        ? Response.json({ access_token: "T" })
+        ? Response.json({ access_token: "T", scope: "openid email" })
         : Response.json(
             { error: "insufficient_scope", error_description: "s@example.com" },
             { status: 403, headers: { "paypal-debug-id": "d" } },
@@ -127,8 +128,22 @@ describe("profileFromCode", () => {
     expect(r).toEqual({
       ok: false,
       reason:
-        "userinfo failed: HTTP 403 insufficient_scope (debug_id d); openid: HTTP 403 insufficient_scope (debug_id d)",
+        "userinfo failed: HTTP 403 insufficient_scope (debug_id d); openid: HTTP 403 insufficient_scope (debug_id d) [scope: openid email]",
     });
     expect(JSON.stringify(r)).not.toContain("s@example.com");
+  });
+
+  it("logs PayPal's short error description", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json(
+        { error: "invalid_request", error_description: "Missing header" },
+        { status: 400, headers: { "paypal-debug-id": "d" } },
+      ),
+    );
+    const r = await profileFromCode(opts);
+    expect(r).toEqual({
+      ok: false,
+      reason: 'code exchange failed: HTTP 400 invalid_request "Missing header" (debug_id d)',
+    });
   });
 });
