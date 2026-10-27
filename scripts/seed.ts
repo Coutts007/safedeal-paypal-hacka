@@ -1,5 +1,5 @@
 /**
- * Seed the two demo deals (BUILD_PLAN section 10; DECISIONS 2026-10-20). Run: `npm run db:seed`.
+ * Seed the two demo deals (BUILD_PLAN Phase 6; DECISIONS 2026-10-20). Run: `npm run db:seed`.
  *
  *   A: used Samsung Galaxy A15, US$95, Nairobi → Nakuru by G4S (demo ends CAPTURED)
  *   B: Nike Air Force 1, US$40, seller never ships (demo ends VOIDED)
@@ -7,7 +7,7 @@
  * Each run adds two new DRAFT deals with terms v1 and a short fictional chat (lib/deals/demo.ts),
  * and prints the seller and buyer links. `--agreed` also confirms both sides so the deals are ready
  * to pay. Payees are the sandbox seller emails from `.env`: A → seller A, B → seller B (falls back
- * to seller A with a warning). No secrets are printed. For a recording, use `npm run demo:reset`.
+ * to seller A with a warning). No secrets are printed. For fresh deals on Render, use `npm run demo:reset`.
  */
 import "dotenv/config";
 import { closeDb, getDb } from "../lib/db";

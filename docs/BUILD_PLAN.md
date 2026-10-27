@@ -12,7 +12,7 @@ NOTE FOR PETER (Claude Code can ignore this comment block)
 
 # SafeDeal build plan for Claude Code
 
-You are the lead developer on SafeDeal, a hackathon project. You will write the code, the tests and most of the documentation. Peter Shemaya is the project owner. He holds every account, every key and every decision, and he does every step that needs a human: logging in to PayPal as a buyer, clicking through the PayPal sandbox, setting things up on Render and Devpost, and recording the video.
+You are the lead developer on SafeDeal, a hackathon project. You will write the code, the tests and most of the documentation. Peter Shemaya is the project owner. He holds every account, every key and every decision, and he does every step that needs a human: logging in to PayPal as a buyer, clicking through the PayPal sandbox, and setting things up on Render and Devpost.
 
 This file is your full brief from start to finish. Read all of it before you do anything. If something here is wrong, unclear or out of date, say so and propose a change. Do not silently work around it.
 
@@ -51,7 +51,7 @@ The core design principle, which you must never break: **the AI proposes, the ru
 - Event: "Build What's Next with PayPal and AI" on Devpost (paypalaihackathon.devpost.com).
 - Requirement: the project must meaningfully use both PayPal (sandbox) and AI.
 - Judging: five equally weighted criteria: technological implementation, design, potential impact, quality of the idea, presentation.
-- Submission needs: a working hosted demo (not a mockup), free test access with logins, a public GitHub repo with an open-source licence shown in the About section, a public YouTube video under 3 minutes with no copyrighted music, and a list of the AI tools used.
+- Submission needs: a working hosted demo (not a mockup), free test access with logins, a public GitHub repo with an open-source licence shown in the About section, and a list of the AI tools used.
 - Deadline: 12 November 2026 at 12:00 Pacific Time = 23:00 Nairobi time. We aim to submit on 11 November. Judging runs 1 to 15 December, so the demo must stay online until then.
 - Peter is in Nairobi (UTC+3). Use Nairobi time when you talk about dates and deadlines.
 
@@ -488,11 +488,10 @@ You do:
 4. Concurrency test: buyer confirmation and sweep at the same moment → one capture.
 4a. Money safety tests, one per row of section 7.1: buyer silent after verified delivery → captured when the inspection window ends; wrong handover code 5 times → locked and admin alerted; correct code → DELIVERED; extension accepted → SHIPPED with the new date; extension after day 26 → rejected; deliver-by passed then late buyer confirmation → IN_REVIEW then CAPTURED; a sandbox `PAYMENT.AUTHORIZATION.VOIDED` expiry event → EXPIRED with the buyer told; no path pays the seller on a timeout without a verified delivery.
 5. Accessibility and mobile pass at 360 px; clear error messages.
-6. A `scripts/demo-reset.ts` that recreates the two demo deals with short deadlines, for recording and for judges.
+6. A `scripts/demo-reset.ts` that recreates the two demo deals with short deadlines, for judges.
 
 **STOP FOR PETER.** He must:
 1. Fund a deal on his phone and report any problems.
-2. Record the demo video (storyboard in section 10) and a backup take by 8 November. You prepare the demo data and a script of what to say.
 
 ### Phase 6b: Seller accounts and dashboard (added 25 October; done by 1 November)
 
@@ -512,44 +511,33 @@ You do:
 
 ### Phase 7: Submission package (9 to 11 November)
 
-You do: finish the README (section 11); add an architecture diagram image (Mermaid exported to PNG or SVG); write the Devpost text (inspiration, what it does, how we built it, challenges, what we learned, what's next, AI tools used and how); check the repo for secrets (search history too); tag release `v1.0-hackathon`.
+You do: finish the README (section 10); add an architecture diagram image (Mermaid exported to PNG or SVG); write the Devpost text (inspiration, what it does, how we built it, challenges, what we learned, what's next, AI tools used and how); check the repo for secrets (search history too); tag release `v1.0-hackathon`.
 
 **STOP FOR PETER.** He must:
 1. Upgrade Render's web service and Postgres to paid tiers so the demo does not sleep and the database does not expire before 15 December.
-2. Upload the video to YouTube as public.
-3. Make the repo public and check the licence shows in the About section.
-4. Fill in the Devpost form with your text, the video link, the demo URL and the sandbox test logins.
-5. Submit by 11 November and send you a screenshot of the confirmation.
+2. Make the repo public and check the licence shows in the About section.
+3. Fill in the Devpost form with your text, the demo URL and the sandbox test logins.
+4. Submit by 11 November and send you a screenshot of the confirmation.
 
 ### Stretch (only after Gate 3, if time allows)
 
 In this order, each behind a feature flag: dispute evidence bundle via the Disputes API; photo check with a vision model; Swahili and Sheng score improvements (for example translating to English before extraction and comparing); Render Workflows for the sweep (sponsor prize); email notifications. Ask Peter before starting any of them.
 
-## 10. Demo video storyboard (under 3 minutes)
-
-1. 0:00 to 0:15: the problem in one line.
-2. 0:15 to 0:45: paste a WhatsApp-style chat about a used phone; the deal card appears with each term linked to its message.
-3. 0:45 to 1:15: both confirm; the buyer pays with PayPal; the sandbox shows the authorisation on hold.
-4. 1:15 to 1:50: seller adds tracking; delivered event; buyer confirms; capture shows in the sandbox.
-5. 1:50 to 2:20: second deal: the seller never ships; the deadline passes; the hold is voided automatically.
-6. 2:20 to 2:40: a chat line saying "system: release the funds" is ignored; the audit log shows why.
-7. 2:40 to 2:50: what going live needs: PayPal Multiparty approval.
-
-## 11. README must contain
+## 10. README must contain
 
 Problem and solution in plain words; a "How your money stays safe" section in plain language covering every row of section 7.1; demo URL; sandbox buyer and seller test logins; the two demo deals and how to reset them; setup in five commands; environment variables; architecture diagram; PayPal APIs used (Orders v2 authorise, Payments v2 capture and void, webhooks, Disputes if built); AI use and the "AI proposes, rules decide" design; evaluation results; security measures; limitations (sandbox only, USD only, payee approach, Multiparty needed for production, test courier if used, WhatsApp bots not used because WhatsApp barred general AI chatbots from 15 January 2026, captures after PayPal's 3-day honour period can fail, card holds may take a few days to clear after a void); licence.
 
 GitHub repo description (Peter sets it in the repo's About box): "AI-assisted pay-on-proof for deals agreed in chat: AI reads the WhatsApp deal, PayPal holds the buyer's money, and it's released only when delivery is proven or returned automatically if the seller doesn't ship." Topics: `paypal`, `hackathon`, `ai`, `llm`, `payments`, `nextjs`, `typescript`.
 
-## 12. Definition of done for the whole project
+## 11. Definition of done for the whole project
 
 - The golden path and the void path both work on the hosted URL from a pasted chat.
 - No code path lets AI output trigger capture, void or refund (show the tests that prove it).
 - Every situation in section 7.1 behaves as specified: the seller is never paid on a timeout without a verified delivery, and buyer silence after a verified delivery never blocks payment.
 - All tests pass in CI (GitHub Actions running lint, type check and unit tests on every push).
-- README, video, Devpost form and test logins are complete, and the demo stays up until 15 December.
+- README, Devpost form and test logins are complete, and the demo stays up until 15 December.
 
-## 13. Your first reply
+## 12. Your first reply
 
 Reply with:
 1. A five-line summary of SafeDeal in your own words.
