@@ -1,5 +1,5 @@
 /**
- * Fresh demo deals for recording the video or for judges (BUILD_PLAN Phase 6, item 6):
+ * Fresh demo deals for judges (BUILD_PLAN Phase 6, item 6):
  * `npm run demo:reset` (locally) or `npx tsx scripts/demo-reset.ts` in the Render shell.
  *
  *   A: Samsung Galaxy A15, US$95, David → Shemaya by G4S (pay, track, deliver, confirm: CAPTURED)

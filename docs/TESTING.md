@@ -16,7 +16,7 @@
 | Injection eval (real model, costs money) | `npm run eval:injection` (`-- --only chat-03,evidence-08`)                                                                                  | `.env` with `LLM_API_KEY`, network                                                        |
 | Test courier delivery                    | `curl -X POST <url>/api/test-courier/deliver -H 'x-test-courier-secret: …' -H 'content-type: application/json' -d '{"trackingNumber":"…"}'` | `TEST_COURIER_SECRET`, `COURIER_MODE=test`                                                |
 | Demo data                                | `npm run db:seed` (add `-- --agreed`)                                                                                                       | Postgres, `SANDBOX_SELLER_A_EMAIL`                                                        |
-| Demo reset (recording, judges)           | `npm run demo:reset` (`-- --ship-minutes 6`); on Render: `npx tsx scripts/demo-reset.ts`                                                    | Postgres, `SANDBOX_SELLER_A_EMAIL`                                                        |
+| Demo reset (judges)                      | `npm run demo:reset` (`-- --ship-minutes 6`); on Render: `npx tsx scripts/demo-reset.ts`                                                    | Postgres, `SANDBOX_SELLER_A_EMAIL`                                                        |
 
 CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests, database tests (with a
 Postgres 16 service) and the end-to-end tests on every push. Database tests create and migrate their own database

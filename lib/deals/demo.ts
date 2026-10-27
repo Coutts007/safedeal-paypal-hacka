@@ -6,7 +6,7 @@ import { onCancel, onTermsConfirmed, type EngineDeps } from "@/lib/rules/engine"
 import { newPublicRef, newRoleToken } from "./ids";
 import { parseDealTerms, termsHash } from "./terms";
 
-// The two demo deals (BUILD_PLAN section 10; DECISIONS 2026-10-20), used by `npm run db:seed` and
+// The two demo deals (BUILD_PLAN Phase 6; DECISIONS 2026-10-20), used by `npm run db:seed` and
 // `npm run demo:reset`. Parties (Peter, 2026-10-21): A: David sells to Shemaya; B: Shemaya sells
 // to David. The chats are fictional and already redacted.
 
@@ -127,7 +127,7 @@ export async function agreeDemoDeal(dealId: string, hash: string, deps?: EngineD
 const CANCELLABLE = ["DRAFT", "AGREED", "FUNDING_FAILED"] as const;
 
 /**
- * Fresh demo deals for a recording: earlier demo deals that hold no money are cancelled, deals
+ * Fresh demo deals: earlier demo deals that hold no money are cancelled, deals
  * where PayPal holds money are left alone and listed (a reviewer decides those; this script never
  * moves money), then deals A and B are created and agreed by both parties.
  */

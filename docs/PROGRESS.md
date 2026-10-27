@@ -160,8 +160,7 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 - Accessibility: axe (WCAG 2.1 A/AA) and no sideways scroll on every main screen and state; clean.
 - Clear message for `TRANSACTION_REFUSED` on the pay button.
 - `npm run demo:reset` (`scripts/demo-reset.ts`, `lib/deals/demo.ts`): fresh agreed demo deals A
-  and B, B with a short ship-by; never moves money. `docs/DEMO_SCRIPT.md`: scene-by-scene video
-  script with the chat to paste.
+  and B, B with a short ship-by; never moves money.
 
 ### After Phase 6 (2026-10-25, branch `evidence-bundle-pdf`)
 
@@ -209,7 +208,6 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 - Phone test: fund a deal on his phone (sandbox) and report any problems.
 - Gate 3 leftovers on Render: buyer confirms → CAPTURED; void path (deal B from
   `demo:reset`); reviewer page with a reported problem. Then rotate `TEST_COURIER_SECRET`.
-- Demo video and a backup take by 8 November (`docs/DEMO_SCRIPT.md`).
 - Still open from Phase 4: Swahili and Sheng chats (and local-language injection attacks for
   `eval/injection/cases.json`), gold label review, three chats of his own.
 - To confirm: handover code derived from a secret (DECISIONS 2026-10-23); refusal fallback on.
@@ -223,5 +221,5 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 ## Next step
 
 Peter enables Log in with PayPal, merges `phase-6b-seller-dashboard` and logs in on Render. Then
-the phone test, Gate 3 leftovers and the video; Phase 7 (submission package, 9 to 11 November)
+the phone test and Gate 3 leftovers; Phase 7 (submission package, 9 to 11 November)
 after his approval.
