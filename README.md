@@ -67,8 +67,8 @@ Two PayPal limits worth knowing:
 
 | Role                       | Email                  | Password                  |
 | -------------------------- | ---------------------- | ------------------------- |
-| Buyer (pays with PayPal)   | `TO_FILL_BUYER_EMAIL`  | `TO_FILL_BUYER_PASSWORD`  |
-| Seller (receives payments) | `TO_FILL_SELLER_EMAIL` | `TO_FILL_SELLER_PASSWORD` |
+| Buyer (pays with PayPal)   | sb-vveq4753457259@personal.example.com | &w@-#lC7  |
+| Seller (receives payments) | sb-udoef52668629@business.example.com | k+6^8tJB |
 
 **Walk through it:**
 
