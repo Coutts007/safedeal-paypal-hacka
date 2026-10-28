@@ -1,12 +1,11 @@
 # Progress
 
-_Last updated: 2026-10-25 (Nairobi)_
+_Last updated: 2026-10-28 (Nairobi)_
 
 ## Current phase
 
-**Phase 6b: Seller accounts and dashboard**: built on branch `phase-6b-seller-dashboard`.
-**STOP FOR PETER**: enable Log in with PayPal on the sandbox app and log in on Render (see
-"Next step").
+**Phase 7: Submission package**: built on branch `phase-7-submission`.
+**STOP FOR PETER**: the steps under "Next step".
 
 ## Done
 
@@ -173,7 +172,7 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
   A summary above the form lists what needs the seller. Prompt `extract-v4` recalibrated: "Check
   this" in 8 of 43 chats (was 36), every field still right; eval 91.4% F1, injection 30/30.
 
-### Phase 6b (2026-10-25, branch `phase-6b-seller-dashboard`)
+### Phase 6b (merged, PRs #13, #14, #17 to #19)
 
 - Log in with PayPal (sandbox) for sellers: `/login`, `POST /api/auth/paypal/start` and `/callback`
   (state cookie against forged logins), `lib/paypal/identity.ts` (code → token → userinfo, the
@@ -189,7 +188,7 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
 - Tests: 16 unit, 9 database, 2 e2e (whole seller flow; forged login), axe and 360 px checks on
   the new pages. Download and copy buttons fixed (they turned white; now show progress).
 
-### Chat file upload (2026-10-25, branch `chat-file-upload`)
+### Chat file upload (merged, PR #16)
 
 - "Upload an exported chat" on the create form: WhatsApp `.txt` or the iPhone `.zip`
   (`_chat.txt`), Instagram/Facebook `message_*.json` (or their zip), Telegram `result.json`.
@@ -203,23 +202,43 @@ evidence|receipt`, `POST /api/webhooks/paypal`, `POST /api/cron/sweep`, `GET /ap
   "kesho", deliver by Saturday 24 Oct, 4 conditions), the planted injection flagged; 13,821 input
   tokens, 5 s.
 
+### Phase 7 (2026-10-28, branch `phase-7-submission`)
+
+- README complete (BUILD_PLAN section 10): problem and solution, "How your money stays safe" (every
+  section 7.1 row in plain words), demo URL, test login table (to fill in), demo deals and reset,
+  architecture, PayPal APIs used, AI design, evaluation, security, setup, environment variables,
+  limitations, licence.
+- Architecture diagram: `docs/images/architecture.svg` (hand-drawn SVG; `architecture.png` copy
+  for Devpost).
+- Devpost text: `docs/DEVPOST.md` (all fields, AI tools used and how).
+- Secret check of the whole git history (all branches): no API keys, tokens, private keys,
+  passwords or database URLs; only `.env.example` and placeholder values ever committed.
+- Demo video material removed from the repo (PR #20); the video is made and kept outside it.
+
 ## Blocked / waiting on Peter
 
+- Fill in the sandbox test logins in the README (`TO_FILL_…`): a sandbox buyer and seller made
+  for judges, not the accounts used in development.
+- Confirm Log in with PayPal works on Render (after PRs #17 to #19): log in at `/login` with the
+  sandbox seller and open `/dashboard`.
 - Phone test: fund a deal on his phone (sandbox) and report any problems.
-- Gate 3 leftovers on Render: buyer confirms → CAPTURED; void path (deal B from
-  `demo:reset`); reviewer page with a reported problem. Then rotate `TEST_COURIER_SECRET`.
+- Gate 3 leftover: reviewer page with a reported problem. Capture and void were seen working on
+  Render on 2026-10-27 (voids need a payee such as seller A; see DECISIONS). Then rotate
+  `TEST_COURIER_SECRET`.
 - Still open from Phase 4: Swahili and Sheng chats (and local-language injection attacks for
   `eval/injection/cases.json`), gold label review, three chats of his own.
 - To confirm: handover code derived from a secret (DECISIONS 2026-10-23); refusal fallback on.
-- Render upgrade to paid plans by 9 November.
-
-- Log in with PayPal on the sandbox app (Phase 6b): Return URL
-  `https://safedeal-4abv.onrender.com/api/auth/paypal/callback`, then a login on Render.
-- Why a deal past ship-by was not voided on Render: the `scripts/deal-status.ts` output or the
-  cron log.
+- Render upgrade to paid plans by 9 November (the free database expires about 21 November).
 
 ## Next step
 
-Peter enables Log in with PayPal, merges `phase-6b-seller-dashboard` and logs in on Render. Then
-the phone test and Gate 3 leftovers; Phase 7 (submission package, 9 to 11 November)
-after his approval.
+Peter merges `phase-7-submission`, fills in the test logins, then:
+
+1. Upgrades Render's web service (starter) and Postgres (basic-256mb) so the demo stays up until
+   15 December.
+2. Makes the repo public and checks the Apache-2.0 licence shows in the About section; sets the
+   description and topics (BUILD_PLAN section 10).
+3. Tags the release: `git tag v1.0-hackathon origin/main && git push origin v1.0-hackathon`.
+4. Fills in the Devpost form from `docs/DEVPOST.md`, with the demo URL and the test logins.
+5. Submits by 11 November (deadline 12 November, 23:00 Nairobi) and sends a screenshot of the
+   confirmation.
